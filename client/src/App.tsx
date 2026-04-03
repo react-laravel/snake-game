@@ -14,7 +14,6 @@ const BASE_FONT_PX = 16;
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [gridSize, setGridSize] = useState({ w: 60, h: 40 });
@@ -23,10 +22,13 @@ export default function App() {
   const [deaths, setDeaths] = useState<DeathEvent[]>([]);
   const [myScore, setMyScore] = useState(0);
   const [isDead, setIsDead] = useState(false);
+  const [joystick, setJoystick] = useState({ active: false, dx: 0, dy: 0 });
   const lastDirRef = useRef<Dir>('right');
   const reconnectTokenRef = useRef<string | null>(null);
   const fpsRef = useRef({ frames: 0, last: performance.now(), displayFps: 0 });
   const rafRef = useRef<number>(0);
+  const joystickTouchId = useRef<number | null>(null);
+  const joystickOriginRef = useRef<{ x: number; y: number } | null>(null);
 
   const CELL_PX = CELL_REM * BASE_FONT_PX;
 
@@ -86,6 +88,7 @@ export default function App() {
     }
   }, []);
 
+  // Keyboard
   useEffect(() => {
     const map: Record<string, Dir> = {
       ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
@@ -98,32 +101,83 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [sendDir]);
 
+  // Virtual joystick — global touch on document
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const onStart = (e: TouchEvent) => {
-      const t = e.touches[0];
-      touchStartRef.current = { x: t.clientX, y: t.clientY };
+    const JBASE = 110; // joystick base diameter px
+    const JMARGIN = 28; // margin from edges
+
+    const getJoyCenter = () => ({
+      x: JMARGIN + JBASE / 2,
+      y: window.innerHeight - JMARGIN - JBASE / 2,
+      half: JBASE / 2,
+    });
+
+    const isInJoystick = (x: number, y: number) => {
+      const c = getJoyCenter();
+      return Math.abs(x - c.x) <= c.half && Math.abs(y - c.y) <= c.half;
     };
-    const onEnd = (e: TouchEvent) => {
-      if (!touchStartRef.current) return;
-      const t = e.changedTouches[0];
-      const dx = t.clientX - touchStartRef.current.x;
-      const dy = t.clientY - touchStartRef.current.y;
-      const absDx = Math.abs(dx), absDy = Math.abs(dy);
-      if (Math.max(absDx, absDy) < 20) return;
-      if (absDx > absDy) sendDir(dx > 0 ? 'right' : 'left');
-      else sendDir(dy > 0 ? 'down' : 'up');
-      touchStartRef.current = null;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (joystickTouchId.current !== null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (isInJoystick(t.clientX, t.clientY)) {
+          e.preventDefault();
+          joystickTouchId.current = t.identifier;
+          joystickOriginRef.current = { x: t.clientX, y: t.clientY };
+          setJoystick({ active: true, dx: 0, dy: 0 });
+          break;
+        }
+      }
     };
-    canvas.addEventListener('touchstart', onStart, { passive: true });
-    canvas.addEventListener('touchend', onEnd, { passive: true });
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (joystickTouchId.current === null) return;
+      e.preventDefault();
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier !== joystickTouchId.current) continue;
+        const c = getJoyCenter();
+        let dx = t.clientX - c.x;
+        let dy = t.clientY - c.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > c.half) {
+          dx = dx / dist * c.half;
+          dy = dy / dist * c.half;
+        }
+        setJoystick({ active: true, dx, dy });
+        if (dist > c.half * 0.3) {
+          const absDx = Math.abs(dx), absDy = Math.abs(dy);
+          if (absDx > absDy) sendDir(dx > 0 ? 'right' : 'left');
+          else sendDir(dy > 0 ? 'down' : 'up');
+        }
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === joystickTouchId.current) {
+          joystickTouchId.current = null;
+          joystickOriginRef.current = null;
+          setJoystick({ active: false, dx: 0, dy: 0 });
+          break;
+        }
+      }
+    };
+
+    document.addEventListener('touchstart', onTouchStart, { passive: false });
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+    document.addEventListener('touchcancel', onTouchEnd);
     return () => {
-      canvas.removeEventListener('touchstart', onStart);
-      canvas.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+      document.removeEventListener('touchcancel', onTouchEnd);
     };
   }, [sendDir]);
 
+  // Render loop
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
@@ -206,9 +260,7 @@ export default function App() {
             const sx = seg.x - camX;
             const sy = seg.y - camY;
             if (sx < -0.5 || sx > cols + 0.5 || sy < -0.5 || sy > rows + 0.5) continue;
-            if (i === 1 && isMe) console.log(`[render] player=${player.name} color=${player.color} len=${player.snake.length}`);
-            const bodyColor = isMe ? player.color : player.color;
-            ctx.fillStyle = bodyColor;
+            ctx.fillStyle = player.color;
             ctx.fillRect(sx * CELL_PX + 1, sy * CELL_PX + 1, CELL_PX - 2, CELL_PX - 2);
           }
           const head = player.snake[0];
@@ -262,8 +314,11 @@ export default function App() {
     ? Object.entries(gameState.scores).sort((a, b) => b[1].score - a[1].score)
     : [];
 
+  const JBASE = 110;
+  const JMARGIN = 28;
+
   return (
-    <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#0d0d1a', fontFamily: "'Segoe UI', sans-serif" }}>
+    <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#0d0d1a', fontFamily: "'Segoe UI', sans-serif", touchAction: 'none' }}>
       {!joined ? (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
           <h1 style={{ color: '#00ff88', fontSize: 32, textShadow: '0 0 20px #00ff8866', margin: 0 }}>🐍 贪吃蛇多人对战</h1>
@@ -273,15 +328,45 @@ export default function App() {
               style={{ padding: '12px 16px', fontSize: 18, borderRadius: 10, border: '2px solid #00ff88', background: '#0a0a1a', color: '#fff', outline: 'none', width: 220, textAlign: 'center' }} />
             <button type="submit" style={{ padding: '12px 28px', fontSize: 18, borderRadius: 10, border: 'none', background: '#00ff88', color: '#0d0d1a', fontWeight: 700, cursor: 'pointer' }}>进入</button>
           </form>
-          <p style={{ color: '#555', fontSize: 13 }}>方向键 / WASD 控制 · 手机滑动屏幕</p>
+          <p style={{ color: '#555', fontSize: 13 }}>方向键 / WASD 控制 · 手机左下角摇杆</p>
         </div>
       ) : (
         <>
-          <canvas ref={canvasRef} style={{ display: 'block', cursor: 'none' }} />
+          <canvas ref={canvasRef} style={{ display: 'block' }} />
+
+          {/* Virtual joystick */}
+          <div style={{
+            position: 'absolute',
+            bottom: JMARGIN,
+            left: JMARGIN,
+            width: JBASE,
+            height: JBASE,
+            borderRadius: '50%',
+            background: 'rgba(255,255,255,0.07)',
+            border: '2px solid rgba(255,255,255,0.18)',
+            touchAction: 'none',
+            userSelect: 'none',
+            zIndex: 100,
+          }}>
+            <div style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              width: 46,
+              height: 46,
+              borderRadius: '50%',
+              background: joystick.active ? 'rgba(0,255,136,0.7)' : 'rgba(255,255,255,0.2)',
+              border: '2px solid #00ff88',
+              transform: `translate(calc(-50% + ${joystick.dx}px), calc(-50% + ${joystick.dy}px))`,
+              transition: joystick.active ? 'none' : 'transform 0.12s ease-out',
+              pointerEvents: 'none',
+              boxShadow: joystick.active ? '0 0 14px #00ff88' : 'none',
+            }} />
+          </div>
 
           {isDead && (
             <div onClick={handleRespawn}
-              style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.72)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', cursor: 'pointer' }}>
+              style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.72)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', cursor: 'pointer', zIndex: 200 }}>
               <div style={{ fontSize: 64, marginBottom: 16 }}>💀</div>
               <div style={{ fontSize: 24, fontWeight: 700 }}>你已死亡</div>
               <div style={{ fontSize: 15, color: '#aaa', marginTop: 10 }}>点击任意处复活</div>
