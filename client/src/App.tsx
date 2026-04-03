@@ -10,6 +10,7 @@ type Dir = 'up' | 'down' | 'left' | 'right';
 
 const CELL_REM = 0.85;
 const BASE_FONT_PX = 16;
+const JBASE = 110;
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -22,7 +23,8 @@ export default function App() {
   const [deaths, setDeaths] = useState<DeathEvent[]>([]);
   const [myScore, setMyScore] = useState(0);
   const [isDead, setIsDead] = useState(false);
-  const [joystick, setJoystick] = useState({ active: false, dx: 0, dy: 0 });
+  const [joystick, setJoystick] = useState({ active: false, dx: 0, dy: 0, baseX: 0, baseY: 0 });
+  const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
   const lastDirRef = useRef<Dir>('right');
   const reconnectTokenRef = useRef<string | null>(null);
   const fpsRef = useRef({ frames: 0, last: performance.now(), displayFps: 0 });
@@ -78,6 +80,16 @@ export default function App() {
 
   useEffect(() => { connect(); }, []);
 
+  useEffect(() => {
+    const handleResize = () => setIsLandscape(window.innerWidth > window.innerHeight);
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
+
   const sendDir = useCallback((dir: Dir) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const opposites: Record<Dir, Dir> = { up: 'down', down: 'up', left: 'right', right: 'left' };
@@ -101,33 +113,21 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [sendDir]);
 
-  // Virtual joystick — global touch on document
+  // Virtual joystick — follows touch position
   useEffect(() => {
-    const JBASE = 110; // joystick base diameter px
-    const JMARGIN = 28; // margin from edges
-
-    const getJoyCenter = () => ({
-      x: JMARGIN + JBASE / 2,
-      y: window.innerHeight - JMARGIN - JBASE / 2,
-      half: JBASE / 2,
-    });
-
-    const isInJoystick = (x: number, y: number) => {
-      const c = getJoyCenter();
-      return Math.abs(x - c.x) <= c.half && Math.abs(y - c.y) <= c.half;
-    };
+    const HALF = JBASE / 2;
 
     const onTouchStart = (e: TouchEvent) => {
       if (joystickTouchId.current !== null) return;
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
-        if (isInJoystick(t.clientX, t.clientY)) {
-          e.preventDefault();
-          joystickTouchId.current = t.identifier;
-          joystickOriginRef.current = { x: t.clientX, y: t.clientY };
-          setJoystick({ active: true, dx: 0, dy: 0 });
-          break;
-        }
+        const target = t.target as HTMLElement;
+        if (target.closest('[data-no-joystick]')) continue;
+        e.preventDefault();
+        joystickTouchId.current = t.identifier;
+        joystickOriginRef.current = { x: t.clientX, y: t.clientY };
+        setJoystick({ active: true, dx: 0, dy: 0, baseX: t.clientX, baseY: t.clientY });
+        break;
       }
     };
 
@@ -137,16 +137,17 @@ export default function App() {
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
         if (t.identifier !== joystickTouchId.current) continue;
-        const c = getJoyCenter();
-        let dx = t.clientX - c.x;
-        let dy = t.clientY - c.y;
+        const origin = joystickOriginRef.current;
+        if (!origin) continue;
+        let dx = t.clientX - origin.x;
+        let dy = t.clientY - origin.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > c.half) {
-          dx = dx / dist * c.half;
-          dy = dy / dist * c.half;
+        if (dist > HALF) {
+          dx = dx / dist * HALF;
+          dy = dy / dist * HALF;
         }
-        setJoystick({ active: true, dx, dy });
-        if (dist > c.half * 0.3) {
+        setJoystick({ active: true, dx, dy, baseX: origin.x, baseY: origin.y });
+        if (dist > HALF * 0.3) {
           const absDx = Math.abs(dx), absDy = Math.abs(dy);
           if (absDx > absDy) sendDir(dx > 0 ? 'right' : 'left');
           else sendDir(dy > 0 ? 'down' : 'up');
@@ -159,7 +160,7 @@ export default function App() {
         if (e.changedTouches[i].identifier === joystickTouchId.current) {
           joystickTouchId.current = null;
           joystickOriginRef.current = null;
-          setJoystick({ active: false, dx: 0, dy: 0 });
+          setJoystick({ active: false, dx: 0, dy: 0, baseX: 0, baseY: 0 });
           break;
         }
       }
@@ -238,7 +239,9 @@ export default function App() {
       ctx.lineWidth = 3;
       ctx.shadowBlur = 8;
       ctx.shadowColor = '#00ff88';
-      ctx.strokeRect(1.5, 1.5, cols * CELL_PX - 3, rows * CELL_PX - 3);
+      const bx = -camX * CELL_PX;
+      const by = -camY * CELL_PX;
+      ctx.strokeRect(bx + 1.5, by + 1.5, gridSize.w * CELL_PX - 3, gridSize.h * CELL_PX - 3);
       ctx.shadowBlur = 0;
 
       if (gameState) {
@@ -266,12 +269,16 @@ export default function App() {
           const head = player.snake[0];
           const hx = head.x - camX;
           const hy = head.y - camY;
-          if (hx >= -0.5 && hx <= cols + 0.5 && hy >= -0.5 && hy <= cols + 0.5) {
+          if (hx >= -0.5 && hx <= cols + 0.5 && hy >= -0.5 && hy <= rows + 0.5) {
             ctx.fillStyle = isMe ? '#ffffff' : player.color;
             ctx.fillRect(hx * CELL_PX + 1, hy * CELL_PX + 1, CELL_PX - 2, CELL_PX - 2);
             ctx.fillStyle = '#000';
             ctx.fillRect(hx * CELL_PX + CELL_PX * 0.2, hy * CELL_PX + CELL_PX * 0.2, CELL_PX * 0.18, CELL_PX * 0.18);
             ctx.fillRect(hx * CELL_PX + CELL_PX * 0.62, hy * CELL_PX + CELL_PX * 0.2, CELL_PX * 0.18, CELL_PX * 0.18);
+            ctx.fillStyle = isMe ? '#00ff88' : 'rgba(255,255,255,0.8)';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(player.name, (hx + 0.5) * CELL_PX, hy * CELL_PX - 4);
           }
         }
       }
@@ -314,8 +321,7 @@ export default function App() {
     ? Object.entries(gameState.scores).sort((a, b) => b[1].score - a[1].score)
     : [];
 
-  const JBASE = 110;
-  const JMARGIN = 28;
+
 
   return (
     <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#0d0d1a', fontFamily: "'Segoe UI', sans-serif", touchAction: 'none' }}>
@@ -334,38 +340,40 @@ export default function App() {
         <>
           <canvas ref={canvasRef} style={{ display: 'block' }} />
 
-          {/* Virtual joystick */}
-          <div style={{
-            position: 'absolute',
-            bottom: JMARGIN,
-            left: JMARGIN,
-            width: JBASE,
-            height: JBASE,
-            borderRadius: '50%',
-            background: 'rgba(255,255,255,0.07)',
-            border: '2px solid rgba(255,255,255,0.18)',
-            touchAction: 'none',
-            userSelect: 'none',
-            zIndex: 100,
-          }}>
+          {/* Virtual joystick — follows touch position */}
+          {joystick.active && (
             <div style={{
               position: 'absolute',
-              left: '50%',
-              top: '50%',
-              width: 46,
-              height: 46,
+              left: joystick.baseX - JBASE / 2,
+              top: joystick.baseY - JBASE / 2,
+              width: JBASE,
+              height: JBASE,
               borderRadius: '50%',
-              background: joystick.active ? 'rgba(0,255,136,0.7)' : 'rgba(255,255,255,0.2)',
-              border: '2px solid #00ff88',
-              transform: `translate(calc(-50% + ${joystick.dx}px), calc(-50% + ${joystick.dy}px))`,
-              transition: joystick.active ? 'none' : 'transform 0.12s ease-out',
+              background: 'rgba(255,255,255,0.07)',
+              border: '2px solid rgba(255,255,255,0.18)',
+              touchAction: 'none',
+              userSelect: 'none',
+              zIndex: 100,
               pointerEvents: 'none',
-              boxShadow: joystick.active ? '0 0 14px #00ff88' : 'none',
-            }} />
-          </div>
+            }}>
+              <div style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                width: 46,
+                height: 46,
+                borderRadius: '50%',
+                background: 'rgba(0,255,136,0.7)',
+                border: '2px solid #00ff88',
+                transform: `translate(calc(-50% + ${joystick.dx}px), calc(-50% + ${joystick.dy}px))`,
+                pointerEvents: 'none',
+                boxShadow: '0 0 14px #00ff88',
+              }} />
+            </div>
+          )}
 
           {isDead && (
-            <div onClick={handleRespawn}
+            <div data-no-joystick onClick={handleRespawn}
               style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.72)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', cursor: 'pointer', zIndex: 200 }}>
               <div style={{ fontSize: 64, marginBottom: 16 }}>💀</div>
               <div style={{ fontSize: 24, fontWeight: 700 }}>你已死亡</div>
@@ -388,21 +396,23 @@ export default function App() {
             </div>
           ))}
 
-          <div style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
-            background: 'rgba(13,13,26,0.9)', borderTop: '1px solid #1a1a2e',
-            maxHeight: '30vh', overflowY: 'auto',
+          <div data-no-joystick style={{
+            position: 'absolute',
+            ...(isLandscape
+              ? { top: 0, right: 0, bottom: 0, width: 180, borderLeft: '1px solid #1a1a2e' }
+              : { bottom: 0, left: 0, right: 0, maxHeight: '30vh', borderTop: '1px solid #1a1a2e' }),
+            background: 'rgba(13,13,26,0.9)', overflowY: 'auto',
           }}>
-            <div style={{ padding: '6px 14px', color: '#555', fontSize: 12, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>📊 排行榜</div>
+            <div style={{ padding: '6px 10px', color: '#555', fontSize: 12, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>📊 排行榜</div>
             {sortedScores.map(([id, entry], idx) => (
               <div key={id} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '5px 14px',
+                display: 'flex', alignItems: 'center', gap: 6, padding: '3px 10px',
                 background: id === playerId ? 'rgba(0,255,136,0.08)' : 'transparent',
                 color: entry.alive ? '#ccc' : '#444', borderBottom: '1px solid #111',
               }}>
-                <span style={{ width: 22, color: idx < 3 ? '#ffd700' : '#444', fontWeight: 700, fontSize: 13 }}>{idx + 1}</span>
-                <span style={{ flex: 1, fontSize: 14 }}>{entry.name}{id === playerId ? ' (我)' : ''}{!entry.alive && <span style={{ color: '#f44', fontSize: 11, marginLeft: 6 }}>💀</span>}</span>
-                <span style={{ color: entry.alive ? '#00ff88' : '#555', fontWeight: 700, fontSize: 14 }}>{entry.score}</span>
+                <span style={{ width: 18, color: idx < 3 ? '#ffd700' : '#444', fontWeight: 700, fontSize: 12 }}>{idx + 1}</span>
+                <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.name}{id === playerId ? ' (我)' : ''}{!entry.alive && <span style={{ color: '#f44', fontSize: 10, marginLeft: 4 }}>💀</span>}</span>
+                <span style={{ color: entry.alive ? '#00ff88' : '#555', fontWeight: 700, fontSize: 12 }}>{entry.score}</span>
               </div>
             ))}
           </div>
