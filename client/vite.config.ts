@@ -11,7 +11,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/snake': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3333',
         ws: true,
         changeOrigin: true,
       },
