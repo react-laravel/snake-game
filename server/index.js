@@ -1,12 +1,17 @@
 import express from 'express';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
+import { dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server, path: '/snake/ws' });
+const clientDist = resolve(__dirname, '../client/dist');
 
-app.use('/snake', express.static('../client/dist'));
+app.use(express.static(clientDist));
+app.use('/snake', express.static(clientDist));
 app.get('/health', (_, res) => res.json({ ok: true }));
 
 const GRID_WIDTH = 60;
