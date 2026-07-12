@@ -29,7 +29,13 @@ export interface GameState {
   scores: Record<string, ScoreEntry>;
 }
 
+export interface GridSize {
+  w: number;
+  h: number;
+}
+
 export interface DeathEvent {
+  id: string;
   victim: string;
   victimName: string;
   killer: string | null;
@@ -45,3 +51,29 @@ export interface JoystickState {
 }
 
 export type Dir = 'up' | 'down' | 'left' | 'right';
+
+export type ServerMessage =
+  | {
+      type: 'welcome';
+      playerId: string;
+      gridWidth: number;
+      gridHeight: number;
+      reconnectToken?: string;
+    }
+  | {
+      type: 'gameState';
+      players: Player[];
+      foods: Food[];
+      scores: Record<string, ScoreEntry>;
+    }
+  | {
+      type: 'playerDied';
+      victim: string;
+      victimName: string;
+      killer: string | null;
+      killerName: string | null;
+    }
+  | {
+      type: 'youDied';
+      killerName: string | null;
+    };

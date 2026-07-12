@@ -7,8 +7,8 @@ interface DeathFeedProps {
 export function DeathFeed({ deaths }: DeathFeedProps) {
   return (
     <>
-      {deaths.map((event, index) => (
-        <div key={`${event.victim}-${index}`} className="death-toast">
+      {deaths.map((event) => (
+        <div key={event.id} className="death-toast">
           {event.killer ? (
             <span>
               X <b>{event.victimName}</b> 被 <b>{event.killerName}</b> 击杀！
