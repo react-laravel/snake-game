@@ -1,34 +1,31 @@
+import { memo, useState } from 'react';
 import type { ScoreEntry } from '../types/game';
 
 interface ScoreboardProps {
-  isLandscape: boolean;
   sortedScores: Array<[string, ScoreEntry]>;
   playerId: string | null;
 }
 
-export function Scoreboard({ isLandscape, sortedScores, playerId }: ScoreboardProps) {
+export const Scoreboard = memo(function Scoreboard({ sortedScores, playerId }: ScoreboardProps) {
+  const [expanded, setExpanded] = useState(false);
+  const aliveCount = sortedScores.filter(([, entry]) => entry.alive).length;
+
   return (
-    <div
-      className={`scoreboard ${isLandscape ? 'scoreboard-landscape' : 'scoreboard-portrait'}`}
-      data-no-joystick
-    >
-      <div className="scoreboard-title">排行榜</div>
-      <div className="scoreboard-list">
-        {sortedScores.map(([id, entry], index) => {
-          const isSelf = id === playerId;
-          return (
-            <div key={id} className={`score-row ${isSelf ? 'score-row-self' : ''}`}>
-              <span className="score-rank">{index + 1}</span>
-              <span className="score-name">
-                {entry.name}
-                {isSelf ? ' (我)' : ''}
-                {!entry.alive ? <span className="score-dead"> DEAD</span> : null}
-              </span>
-              <span className={`score-points ${entry.alive ? 'score-alive' : 'score-faded'}`}>{entry.score}</span>
-            </div>
-          );
-        })}
+    <aside className={`scoreboard ${expanded ? 'scoreboard-expanded' : ''}`} data-no-joystick aria-label="排行榜">
+      <div className="scoreboard-heading"><div><span className="eyebrow">LEADERBOARD</span><h2>场上排名</h2></div><span className="player-count">{aliveCount} 存活</span></div>
+      <button className="scoreboard-toggle" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-controls="scoreboard-list">排行榜 <span>{aliveCount} 人存活 · {expanded ? '收起 −' : '展开 +'}</span></button>
+      <div id="scoreboard-list" className="scoreboard-list">
+        <div className="scoreboard-columns"><span>玩家</span><span>积分</span></div>
+        {sortedScores.length === 0 && <p className="scoreboard-empty">等待玩家加入…</p>}
+        {sortedScores.map(([id, entry], index) => (
+          <div key={id} className={`score-row ${id === playerId ? 'score-row-self' : ''}`}>
+            <span className="score-rank">{String(index + 1).padStart(2, '0')}</span>
+            <span className="score-name" title={entry.name}>{entry.name}{id === playerId && <small>你</small>}<span className="score-player-status">{entry.alive ? '对局中' : '已出局'}</span></span>
+            <span className={`score-points ${!entry.alive ? 'score-faded' : ''}`}>{entry.score}</span>
+          </div>
+        ))}
       </div>
-    </div>
+      <div className="scoreboard-note"><span>生存是第一要务。</span><p>蛇会持续前进，提前转弯。<br />积分在复活后保留。</p><div><kbd>W</kbd><br /><kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></div></div>
+    </aside>
   );
-}
+});

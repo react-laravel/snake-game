@@ -9,6 +9,7 @@ export interface Player {
   snake: SnakeSegment[];
   alive: boolean;
   color: string;
+  dir?: Dir;
 }
 
 export interface Food {
@@ -27,6 +28,8 @@ export interface GameState {
   players: Player[];
   foods: Food[];
   scores: Record<string, ScoreEntry>;
+  seq?: number;
+  tickMs?: number;
 }
 
 export interface GridSize {
@@ -52,6 +55,8 @@ export interface JoystickState {
 
 export type Dir = 'up' | 'down' | 'left' | 'right';
 
+export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
+
 export type ServerMessage =
   | {
       type: 'welcome';
@@ -59,12 +64,18 @@ export type ServerMessage =
       gridWidth: number;
       gridHeight: number;
       reconnectToken?: string;
+      alive?: boolean;
+      dir?: Dir;
+      score?: number;
+      tickMs?: number;
     }
   | {
       type: 'gameState';
       players: Player[];
       foods: Food[];
       scores: Record<string, ScoreEntry>;
+      seq?: number;
+      tickMs?: number;
     }
   | {
       type: 'playerDied';
@@ -76,4 +87,9 @@ export type ServerMessage =
   | {
       type: 'youDied';
       killerName: string | null;
+    }
+  | {
+      type: 'error';
+      code: string;
+      message?: string;
     };

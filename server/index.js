@@ -1,349 +1,215 @@
 import express from 'express';
-import { WebSocketServer } from 'ws';
-import { createServer } from 'http';
-import { dirname, resolve } from 'path';
-import { fileURLToPath } from 'url';
+import { WebSocket, WebSocketServer } from 'ws';
+import { createServer } from 'node:http';
+import { randomBytes } from 'node:crypto';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createGame } from './game.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const app = express();
-const server = createServer(app);
-const wss = new WebSocketServer({ server, path: '/snake/ws' });
-const clientDist = resolve(__dirname, '../client/dist');
+const clientDist = resolve(dirname(fileURLToPath(import.meta.url)), '../client/dist');
+const STATE_BUFFER_LIMIT = 64 * 1024;
+const CONNECTION_BUFFER_LIMIT = 1024 * 1024;
 
-app.use(express.static(clientDist));
-app.use('/snake', express.static(clientDist));
-app.get('/health', (_, res) => res.json({ ok: true }));
+export function createGameServer({ tickMs = 150, reconnectMs = 30000, idleStateMs = 5000, game = createGame() } = {}) {
+  const app = express();
+  const server = createServer(app);
+  const wss = new WebSocketServer({ server, path: '/snake/ws', maxPayload: 1024 });
+  const sessions = new Map();
+  const tokens = new Map();
+  let closing = false;
+  let lastStateBroadcastAt = Date.now();
 
-const GRID_WIDTH = 60;
-const GRID_HEIGHT = 40;
-const TICK_MS = 150;
-const FOOD_COUNT = 15;
-const RECONNECT_MS = 30000;
+  app.use(express.static(clientDist));
+  app.use('/snake', express.static(clientDist));
+  app.get('/health', (_, res) => res.json({ ok: true }));
 
-const players = new Map();
-const reconnectTokens = new Map();
-
-function genId() {
-  return Math.random().toString(36).slice(2, 9);
-}
-
-function hashStr(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
-  return h >>> 0;
-}
-
-function randomPos() {
-  return {
-    x: Math.floor(Math.random() * GRID_WIDTH),
-    y: Math.floor(Math.random() * GRID_HEIGHT),
-  };
-}
-
-function spawnFood() {
-  const foods = [];
-  for (let i = 0; i < FOOD_COUNT; i++) {
-    let pos;
-    let attempts = 0;
-    do {
-      pos = randomPos();
-      attempts++;
-    } while (
-      attempts < 100 &&
-      [...players.values()].some(p => p.alive && p.snake.some(s => s.x === pos.x && s.y === pos.y))
-    );
-    foods.push({ id: genId(), ...pos });
-  }
-  return foods;
-}
-
-let foods = spawnFood();
-
-function createSnake(id, name, color) {
-  const startPos = randomPos();
-  const snakeColor = color || `hsl(${hashStr(id) % 360}, 70%, 55%)`;
-  return {
-    id,
-    name,
-    snake: [
-      { x: startPos.x, y: startPos.y },
-      { x: startPos.x - 1, y: startPos.y },
-      { x: startPos.x - 2, y: startPos.y },
-    ],
-    dir: 'right',
-    nextDir: 'right',
-    alive: true,
-    score: 0,
-    color: snakeColor,
-    lastScoreTime: Date.now(),
-    deathTime: null,
-  };
-}
-
-function moveSnakes() {
-  for (const player of players.values()) {
-    if (!player.alive) continue;
-
-    player.dir = player.nextDir;
-
-    const head = { ...player.snake[0] };
-    switch (player.dir) {
-      case 'up':    head.y--; break;
-      case 'down':  head.y++; break;
-      case 'left':  head.x--; break;
-      case 'right': head.x++; break;
+  function send(socket, data, isState = false) {
+    if (socket.readyState !== WebSocket.OPEN) return;
+    if (socket.bufferedAmount > CONNECTION_BUFFER_LIMIT) {
+      socket.terminate();
+      return;
     }
+    if (isState && socket.bufferedAmount > STATE_BUFFER_LIMIT) return;
+    socket.send(data);
+  }
 
-    player.snake.unshift(head);
-
-    const ateFood = player.snake.length > 3 &&
-      foods.some((f, i) => {
-        if (f.x === head.x && f.y === head.y) {
-          player.score += 10;
-          foods.splice(i, 1);
-          const newPos = randomPos();
-          foods.push({ id: genId(), x: newPos.x, y: newPos.y });
-          return true;
-        }
-        return false;
-      });
-
-    if (!ateFood) {
-      player.snake.pop();
+  function broadcast(message, excludePlayerId, isState = false) {
+    const data = JSON.stringify(message);
+    for (const socket of wss.clients) {
+      if (excludePlayerId && socket.playerId === excludePlayerId) continue;
+      send(socket, data, isState);
     }
   }
-}
 
-function checkCollisions() {
-  const alivePlayers = [...players.values()].filter(p => p.alive);
+  function sendState(socket) {
+    send(socket, JSON.stringify(game.state(tickMs)), true);
+  }
 
-  for (const player of alivePlayers) {
-    const head = player.snake[0];
+  function broadcastState() {
+    broadcast(game.state(tickMs), null, true);
+    lastStateBroadcastAt = Date.now();
+  }
 
-    // Wall collision
-    if (head.x < 0 || head.x >= GRID_WIDTH || head.y < 0 || head.y >= GRID_HEIGHT) {
-      killPlayer(player, null);
-      continue;
-    }
+  function error(socket, code, message) {
+    send(socket, JSON.stringify({ type: 'error', code, message }));
+  }
 
-    // Self collision
-    for (let i = 1; i < player.snake.length; i++) {
-      if (player.snake[i].x === head.x && player.snake[i].y === head.y) {
-        killPlayer(player, null);
-        break;
+  function currentSession(socket) {
+    const session = sessions.get(socket.playerId);
+    return session?.socket === socket ? session : null;
+  }
+
+  function welcome(socket, session) {
+    const player = game.players.get(session.playerId);
+    send(socket, JSON.stringify({
+      type: 'welcome', playerId: player.id, gridWidth: game.width, gridHeight: game.height,
+      reconnectToken: session.token, alive: player.alive, dir: player.dir, score: player.score, tickMs,
+    }));
+    sendState(socket);
+  }
+
+  function attach(socket, session) {
+    const previousSocket = session.socket;
+    clearTimeout(session.cleanupTimer);
+    tokens.delete(session.token);
+    session.token = randomBytes(24).toString('base64url');
+    session.socket = socket;
+    session.expiresAt = Infinity;
+    session.cleanupTimer = null;
+    tokens.set(session.token, session.playerId);
+    socket.playerId = session.playerId;
+    // Identity checks on every message/close keep a replaced socket from
+    // controlling or deleting the newly resumed player.
+    if (previousSocket && previousSocket !== socket) previousSocket.close(1000, 'Session resumed elsewhere');
+    welcome(socket, session);
+  }
+
+  function removeSession(session) {
+    clearTimeout(session.cleanupTimer);
+    tokens.delete(session.token);
+    sessions.delete(session.playerId);
+    game.removePlayer(session.playerId);
+    broadcastState();
+  }
+
+  wss.on('connection', socket => {
+    socket.isAlive = true;
+    socket.on('pong', () => { socket.isAlive = true; });
+    // A socket error is followed by close; close owns session cleanup.
+    socket.on('error', () => {});
+    sendState(socket);
+
+    socket.on('message', data => {
+      let message;
+      try { message = JSON.parse(data.toString()); } catch {
+        error(socket, 'invalid_message', '消息格式无效');
+        return;
       }
-    }
-    if (!player.alive) continue;
+      if (!message || typeof message !== 'object' || Array.isArray(message)) return;
+      const session = currentSession(socket);
 
-    // Other players
-    for (const other of alivePlayers) {
-      if (other.id === player.id) continue;
-      if (!other.snake || other.snake.length === 0) continue;
-
-      // Head vs head
-      const otherHead = other.snake[0];
-      if (head.x === otherHead.x && head.y === otherHead.y) {
-        killPlayer(player, other);
-        killPlayer(other, player);
-        break;
-      }
-
-      // Head vs body
-      for (let i = 1; i < other.snake.length; i++) {
-        if (other.snake[i].x === head.x && other.snake[i].y === head.y) {
-          killPlayer(player, other);
-          break;
+      if (message.type === 'join') {
+        if (session) {
+          welcome(socket, session); // Repeated join cannot reset a player's score.
+          return;
         }
-      }
-    }
-  }
-}
-
-function killPlayer(victim, killer) {
-  if (!victim.alive) return;
-  victim.alive = false;
-  victim.deathTime = Date.now();
-  victim.snake = [];
-
-  // 广播给所有其他玩家
-  if (killer) {
-    killer.score += 100;
-    // 撞其他玩家：广播给其他人
-    broadcast({ type: 'playerDied', victim: victim.id, victimName: victim.name, killer: killer.id, killerName: killer.name }, victim.id);
-    // 通知死者本人
-    sendTo(victim.id, { type: 'youDied', killerName: killer.name });
-  }
-  // 撞墙：不需要通知任何人，死者自己收到 youDied 即可
-  // 单独通知死者本人（通过 playerId 定位 ws）
-  if (!killer) {
-    sendTo(victim.id, { type: 'youDied', killerName: null });
-  }
-
-  // 不自动重生，等待玩家点击复活
-  // victim 保持 dead 状态，等待 respawn 消息
-}
-
-function scoreTick() {
-  const now = Date.now();
-  for (const player of players.values()) {
-    if (player.alive) {
-      const elapsed = Math.floor((now - player.lastScoreTime) / 1000);
-      if (elapsed >= 1) {
-        player.score += elapsed;
-        player.lastScoreTime = now - ((now - player.lastScoreTime) % 1000);
-      }
-    }
-  }
-}
-
-function broadcastGameState() {
-  for (const p of players.values()) {
-    if (p.snake.length > 3) {
-      console.log(`[state] id=${p.id.slice(0,6)} name=${p.name} color=${p.color} len=${p.snake.length} alive=${p.alive}`);
-    }
-  }
-  const state = {
-    type: 'gameState',
-    players: [...players.values()].map(p => ({
-      id: p.id,
-      name: p.name,
-      snake: p.snake.map(s => ({ x: s.x, y: s.y })),
-      alive: p.alive,
-      color: String(p.color),
-    })),
-    foods,
-    scores: Object.fromEntries([...players.values()].map(p => [p.id, { score: p.score, name: p.name, alive: p.alive }])),
-  };
-  broadcast(state);
-}
-
-function broadcast(msg, excludePlayerId = null) {
-  const data = JSON.stringify(msg);
-  for (const client of wss.clients) {
-    if (client.readyState === 1) {
-      if (excludePlayerId && client.playerId === excludePlayerId) continue;
-      client.send(data);
-    }
-  }
-}
-
-function sendTo(playerId, msg) {
-  const data = JSON.stringify(msg);
-  for (const client of wss.clients) {
-    if (client.readyState === 1 && client.playerId === playerId) {
-      client.send(data);
-      break;
-    }
-  }
-}
-
-wss.on('connection', (ws) => {
-  let playerId = null;
-
-  ws.on('message', (data) => {
-    try {
-      const msg = JSON.parse(data.toString());
-
-      if (msg.type === 'join') {
-        // 防止同一 ws 重复创建蛇
-        if (playerId && players.has(playerId)) {
-          players.delete(playerId);
+        if (socket.playerId) return;
+        const name = typeof message.playerName === 'string' ? message.playerName.trim().slice(0, 20) : '';
+        const player = game.addPlayer(name || 'Player');
+        if (!player) {
+          error(socket, 'arena_full', '场地已满，请稍后再试');
+          return;
         }
-        // 防止同名玩家重复加入（清理旧的已断开的同名玩家）
-        const name = (msg.playerName || 'Player').slice(0, 20);
-        for (const [existingId, existingPlayer] of players.entries()) {
-          if (existingPlayer.name === name && (!existingPlayer.ws || existingPlayer.ws.readyState !== 1)) {
-            players.delete(existingId);
-          }
-        }
-        playerId = genId();
-        ws.playerId = playerId;
-
-        const player = createSnake(playerId, name);
-        player.ws = ws;
-        players.set(playerId, player);
-
-        // 生成并下发 reconnect token
-        const token = genId();
-        reconnectTokens.set(token, { playerId, expires: Date.now() + RECONNECT_MS });
-        setTimeout(() => {
-          if (reconnectTokens.has(token)) reconnectTokens.delete(token);
-        }, RECONNECT_MS);
-        ws.send(JSON.stringify({ type: 'welcome', playerId, gridWidth: GRID_WIDTH, gridHeight: GRID_HEIGHT, reconnectToken: token }));
-
-        ws.on('close', () => {
-          if (playerId && players.has(playerId)) {
-            const token = genId();
-            reconnectTokens.set(token, { playerId, expires: Date.now() + RECONNECT_MS });
-            setTimeout(() => reconnectTokens.delete(token), RECONNECT_MS);
-
-            setTimeout(() => {
-              if (players.has(playerId)) {
-                players.delete(playerId);
-              }
-              reconnectTokens.delete(token);
-            }, RECONNECT_MS);
-          }
-        });
-      }
-
-      if (msg.type === 'respawn') {
-        const p = players.get(playerId);
-        if (p && !p.alive) {
-          const color = p.color;
-          console.log(`[respawn] playerId=${playerId} name=${p.name} oldColor=${p.color} newColor=${color}`);
-          const newSnake = createSnake(playerId, p.name, color);
-          newSnake.score = p.score;
-          newSnake.ws = p.ws;
-          players.set(playerId, newSnake);
-          console.log(`[respawn] after set: color=${players.get(playerId)?.color}`);
-        }
+        const newSession = { playerId: player.id, socket: null, token: null, expiresAt: Infinity, cleanupTimer: null };
+        sessions.set(player.id, newSession);
+        attach(socket, newSession);
         return;
       }
 
-      if (msg.type === 'rejoin') {
-        const token = reconnectTokens.get(msg.token);
-        if (token && Date.now() < token.expires) {
-          const oldPlayer = players.get(token.playerId);
-          if (oldPlayer) {
-            oldPlayer.alive = true;
-            oldPlayer.deathTime = null;
-            oldPlayer.lastScoreTime = Date.now();
-            playerId = token.playerId;
-            ws.send(JSON.stringify({ type: 'welcome', playerId: token.playerId, gridWidth: GRID_WIDTH, gridHeight: GRID_HEIGHT }));
-            oldPlayer.ws = ws;
-            ws.playerId = token.playerId;
-            reconnectTokens.delete(token);
-          }
+      if (message.type === 'rejoin') {
+        if (session) {
+          welcome(socket, session);
+          return;
         }
+        if (socket.playerId) return;
+        const id = typeof message.token === 'string' ? tokens.get(message.token) : undefined;
+        const savedSession = sessions.get(id);
+        if (!savedSession || savedSession.expiresAt <= Date.now() || !game.players.has(id)) {
+          error(socket, 'invalid_token', '连接已过期，请重新加入');
+          return;
+        }
+        attach(socket, savedSession);
+        return;
       }
 
-      if (msg.type === 'direction' && playerId) {
-        const player = players.get(playerId);
-        if (player && player.alive) {
-          const dirs = ['up', 'down', 'left', 'right'];
-          if (dirs.includes(msg.dir)) {
-            const opposites = { up: 'down', down: 'up', left: 'right', right: 'left' };
-            if (player.dir !== opposites[msg.dir]) {
-              player.nextDir = msg.dir;
-            }
-          }
-        }
+      if (!session) return;
+      if (message.type === 'direction') game.setDirection(session.playerId, message.dir);
+      if (message.type === 'respawn') {
+        if (!game.respawn(session.playerId)) error(socket, 'arena_full', '场地已满，请稍后再试');
+        else sendState(socket);
       }
-    } catch (e) {
-      console.error('message error', e);
-    }
+    });
+
+    socket.on('close', code => {
+      if (closing) return;
+      const session = currentSession(socket);
+      if (!session) return;
+      if (code === 4001) {
+        removeSession(session);
+        return;
+      }
+      session.socket = null;
+      session.expiresAt = Date.now() + reconnectMs;
+      session.cleanupTimer = setTimeout(() => {
+        if (!session.socket && session.expiresAt <= Date.now()) removeSession(session);
+      }, reconnectMs);
+      session.cleanupTimer.unref();
+    });
   });
-});
 
-setInterval(() => {
-  moveSnakes();
-  checkCollisions();
-  scoreTick();
-  broadcastGameState();
-}, TICK_MS);
+  const tickTimer = setInterval(() => {
+    if (![...game.players.values()].some(player => player.alive)) {
+      // Browsers cannot observe WebSocket ping/pong frames. A sparse snapshot
+      // keeps their connection watchdog alive while the arena is idle.
+      if (wss.clients.size && Date.now() - lastStateBroadcastAt >= idleStateMs) broadcastState();
+      return;
+    }
+    for (const { victim, killer } of game.tick()) {
+      if (killer) broadcast({
+        type: 'playerDied', victim: victim.id, victimName: victim.name, killer: killer.id, killerName: killer.name,
+      }, victim.id);
+      const socket = sessions.get(victim.id)?.socket;
+      if (socket) send(socket, JSON.stringify({ type: 'youDied', killerName: killer?.name || null }));
+    }
+    broadcastState();
+  }, tickMs);
 
-const PORT = process.env.PORT || 3333;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Snake server running on port ${PORT}`);
-});
+  const heartbeatTimer = setInterval(() => {
+    for (const socket of wss.clients) {
+      if (!socket.isAlive) socket.terminate();
+      else {
+        socket.isAlive = false;
+        if (socket.readyState === WebSocket.OPEN) socket.ping();
+      }
+    }
+  }, 15000);
+  heartbeatTimer.unref();
+
+  async function close() {
+    closing = true;
+    clearInterval(tickTimer);
+    clearInterval(heartbeatTimer);
+    for (const session of sessions.values()) clearTimeout(session.cleanupTimer);
+    for (const socket of wss.clients) socket.terminate();
+    await new Promise(resolveClose => wss.close(resolveClose));
+    if (server.listening) await new Promise(resolveClose => server.close(resolveClose));
+  }
+
+  return { server, wss, game, close };
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  const { server } = createGameServer();
+  const port = process.env.PORT || 3333;
+  server.listen(port, '0.0.0.0', () => console.log(`Snake server running on port ${port}`));
+}

@@ -8,6 +8,7 @@ interface GameDebugState {
   playerId: string | null;
   gridSize: GridSize;
   gameState: GameState | null;
+  connectionStatus: string;
 }
 
 export function useGameDebugState(state: GameDebugState) {
@@ -22,9 +23,10 @@ export function useGameDebugState(state: GameDebugState) {
       return JSON.stringify({
         coordinateSystem: 'grid origin is top-left; x increases right; y increases down',
         mode: !current.joined ? 'join' : current.isDead ? 'dead' : 'playing',
+        connection: current.connectionStatus,
         grid: current.gridSize,
         player: player
-          ? { id: player.id, head: player.snake[0] ?? null, length: player.snake.length, alive: player.alive }
+          ? { id: player.id, head: player.snake[0] ?? null, length: player.snake.length, alive: player.alive, dir: player.dir }
           : null,
         foods: current.gameState?.foods ?? [],
         opponents:

@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "node --test src/hooks/connectionUtils.test.mjs src/game/renderGame.test.mjs",
+    "test:browser": "node src/hooks/useGameConnection.browser.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
