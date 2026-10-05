@@ -22,6 +22,8 @@ This file is for AI coding agents collaborating on this repository.
 - Reusable UI is split under `client/src/components/`.
 - Shared game types are in `client/src/types/game.ts`.
 - Server tick loop and collision logic live in `server/index.js`.
+- Pure world simulation and collision rules live in `server/game.js`; session lifecycle and broadcasting remain in `server/index.js`.
+- Canvas redraws are scheduled by new state/resize/visibility, with static grid caching; avoid introducing an unconditional animation loop without an actual animated feature.
 
 ## Collaboration Rules
 
