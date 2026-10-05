@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 const VECTORS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+const DIRECTIONS = Object.keys(VECTORS);
 const OPPOSITES = { up: 'down', down: 'up', left: 'right', right: 'left' };
 const key = ({ x, y }) => `${x},${y}`;
 
@@ -45,27 +46,48 @@ export function createGame({ width = 60, height = 40, foodCount = 15, random = M
     }
   }
 
+  function spawnCandidate(head, dir, occupied, snakeCells) {
+    const [dx, dy] = VECTORS[dir];
+    const body = [head, { x: head.x - dx, y: head.y - dy }, { x: head.x - 2 * dx, y: head.y - 2 * dy }];
+    if (body.some(cell => !inside(cell) || occupied.has(key(cell)))) return null;
+    let lead = 0;
+    for (let step = 1; step <= 10; step++) {
+      const ahead = { x: head.x + dx * step, y: head.y + dy * step };
+      if (!inside(ahead) || snakeCells.has(key(ahead))) break;
+      lead++;
+    }
+    if (lead < 1) return null;
+    const openSide = [1, -1].some(sign => {
+      const side = { x: head.x + dy * sign, y: head.y - dx * sign };
+      return inside(side) && !snakeCells.has(key(side));
+    });
+    // Lower is safer. Eight steps is about 1.2s at the 150ms tick.
+    const tier = lead >= 8 && openSide ? 0 : lead >= 8 ? 1 : lead >= 3 && openSide ? 2 : lead >= 3 ? 3 : openSide ? 4 : 5;
+    return { body, dir, tier };
+  }
+
   function spawn(id, name, color, score = 0) {
     const occupied = occupiedCells(true);
     const snakeCells = occupiedCells();
-    const offset = Math.floor(random() * width * height);
-    for (let i = 0; i < width * height; i++) {
-      const cell = (offset + i) % (width * height);
+    const start = Math.floor(random() * width * height);
+    const dirShift = Math.floor(random() * DIRECTIONS.length);
+    let best = null;
+    for (let i = 0; i < width * height && best?.tier !== 0; i++) {
+      const cell = (start + i) % (width * height);
       const head = { x: cell % width, y: Math.floor(cell / width) };
-      // Leave a free cell in front so a new snake can take its first step.
-      if (head.x < 2 || head.x >= width - 1) continue;
-      const snake = [head, { x: head.x - 1, y: head.y }, { x: head.x - 2, y: head.y }];
-      if (snake.some(segment => occupied.has(key(segment)))) continue;
-      if (snakeCells.has(key({ x: head.x + 1, y: head.y }))) continue;
-      const player = {
-        id, name, color: color || `hsl(${hashString(id) % 360}, 70%, 55%)`,
-        snake, dir: 'right', turns: [], alive: true, score, lastScoreTime: now(), deathTime: null,
-      };
-      players.set(id, player);
-      sequence++;
-      return player;
+      for (let offset = 0; offset < DIRECTIONS.length && best?.tier !== 0; offset++) {
+        const candidate = spawnCandidate(head, DIRECTIONS[(dirShift + offset) % DIRECTIONS.length], occupied, snakeCells);
+        if (candidate && (!best || candidate.tier < best.tier)) best = candidate;
+      }
     }
-    return null;
+    if (!best) return null;
+    const player = {
+      id, name, color: color || `hsl(${hashString(id) % 360}, 70%, 55%)`,
+      snake: best.body, dir: best.dir, turns: [], alive: true, frozen: false, score, lastScoreTime: now(), deathTime: null,
+    };
+    players.set(id, player);
+    sequence++;
+    return player;
   }
 
   function addPlayer(name, color) {
@@ -91,6 +113,16 @@ export function createGame({ width = 60, height = 40, foodCount = 15, random = M
     if (players.delete(id)) sequence++;
   }
 
+  function setFrozen(id, frozen) {
+    const player = players.get(id);
+    if (!player) return false;
+    const next = Boolean(frozen);
+    if (player.frozen === next) return true;
+    player.frozen = next;
+    if (!next) player.lastScoreTime = now();
+    return true;
+  }
+
   function tick() {
     const timestamp = now();
     const foodByCell = new Map(foods.map(food => [key(food), food]));
@@ -103,6 +135,15 @@ export function createGame({ width = 60, height = 40, foodCount = 15, random = M
     // independent of join order, including snakes that die on this same tick.
     for (const player of players.values()) {
       if (!player.alive) continue;
+      if (player.frozen) {
+        player.lastScoreTime = timestamp;
+        for (const segment of player.snake) {
+          const owners = bodies.get(key(segment)) || new Set();
+          owners.add(player.id);
+          bodies.set(key(segment), owners);
+        }
+        continue;
+      }
       player.dir = player.turns.shift() || player.dir;
       const [dx, dy] = VECTORS[player.dir];
       const head = { x: player.snake[0].x + dx, y: player.snake[0].y + dy };
@@ -126,16 +167,15 @@ export function createGame({ width = 60, height = 40, foodCount = 15, random = M
     for (const [id, move] of moves) {
       const { head } = move;
       const bodyOwners = bodies.get(key(head));
-      if (!inside(head) || bodyOwners?.has(id)) {
-        deaths.set(id, null);
-      } else if (heads.get(key(head)).length > 1) {
-        deaths.set(id, null); // Head-on collisions are draws.
-      } else {
+      if (!inside(head)) deaths.set(id, { killerId: null, cause: 'wall' });
+      else if (bodyOwners?.has(id)) deaths.set(id, { killerId: null, cause: 'self' });
+      else if (heads.get(key(head)).length > 1) deaths.set(id, { killerId: null, cause: 'head-on' });
+      else {
         const otherId = previousHeads.get(key(head));
         const other = moves.get(otherId);
         const swap = other && otherId !== id && key(other.head) === key(move.previousHead);
-        if (swap) deaths.set(id, null);
-        else if (bodyOwners?.size) deaths.set(id, [...bodyOwners].sort()[0]);
+        if (swap) deaths.set(id, { killerId: null, cause: 'head-on' });
+        else if (bodyOwners?.size) deaths.set(id, { killerId: [...bodyOwners].sort()[0], cause: 'body' });
       }
     }
 
@@ -156,16 +196,18 @@ export function createGame({ width = 60, height = 40, foodCount = 15, random = M
     }
 
     const events = [];
-    for (const [id, killerId] of deaths) {
+    for (const [id, info] of deaths) {
       const victim = players.get(id);
-      const killer = killerId ? players.get(killerId) : null;
+      const killer = info.killerId ? players.get(info.killerId) : null;
       victim.alive = false;
       victim.deathTime = timestamp;
       victim.snake = [];
       victim.turns = [];
+      victim.frozen = false;
       // Award a kill only when its owner survives the simultaneous collision.
-      if (killer && !deaths.has(killer.id)) killer.score += 100;
-      events.push({ victim, killer });
+      const scoringKill = Boolean(killer && !deaths.has(killer.id));
+      if (scoringKill) killer.score += 100;
+      events.push({ victim, killer, cause: info.cause, scoringKill });
     }
     if (eaten.size) {
       for (let i = foods.length - 1; i >= 0; i--) if (eaten.has(foods[i].id)) foods.splice(i, 1);
@@ -178,12 +220,12 @@ export function createGame({ width = 60, height = 40, foodCount = 15, random = M
   function state(tickMs = 150) {
     return {
       type: 'gameState', seq: sequence, tickMs,
-      players: [...players.values()].map(({ id, name, snake, alive, color, dir }) => ({ id, name, snake, alive, color, dir })),
+      players: [...players.values()].map(({ id, name, snake, alive, color, dir, frozen }) => ({ id, name, snake, alive, color, dir, frozen: Boolean(frozen) })),
       foods,
       scores: Object.fromEntries([...players.values()].map(({ id, name, score, alive }) => [id, { name, score, alive }])),
     };
   }
 
   refillFood();
-  return { players, foods, width, height, addPlayer, respawn, removePlayer, setDirection, tick, state };
+  return { players, foods, width, height, addPlayer, respawn, removePlayer, setDirection, setFrozen, tick, state };
 }

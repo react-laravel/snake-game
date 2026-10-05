@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import { useEffect, useRef, type FormEvent } from 'react';
 
 interface JoinScreenProps {
   name: string;
@@ -9,6 +9,11 @@ interface JoinScreenProps {
 }
 
 export function JoinScreen({ name, busy, error, onNameChange, onJoin }: JoinScreenProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (window.matchMedia('(pointer: fine)').matches) inputRef.current?.focus();
+  }, []);
+
   return (
     <main className="join-screen">
       <div className="lobby-header"><span className="brand-mark" aria-hidden="true">S</span><span>SNAKE / ARENA</span><span className="lobby-tag">多人在线对战</span></div>
@@ -20,7 +25,7 @@ export function JoinScreen({ name, busy, error, onNameChange, onJoin }: JoinScre
           <form className="join-form" onSubmit={onJoin}>
             <label htmlFor="player-name">给你的蛇起个名字</label>
             <div className="join-fields">
-              <input id="player-name" className="join-input" value={name} onChange={(event) => onNameChange(event.target.value)} placeholder="输入昵称" maxLength={20} autoComplete="nickname" disabled={busy} aria-describedby={error ? 'join-error' : 'join-hint'} autoFocus />
+              <input ref={inputRef} id="player-name" className="join-input" value={name} onChange={(event) => onNameChange(event.target.value)} placeholder="输入昵称" maxLength={20} autoComplete="nickname" disabled={busy} aria-describedby={error ? 'join-error' : 'join-hint'} />
               <button id="start-btn" className="primary-button join-button" type="submit" disabled={busy || !name.trim()}>{busy ? '正在连接…' : '进入竞技场'}<span aria-hidden="true"> ↗</span></button>
             </div>
             {error && <p id="join-error" className="inline-error" role="alert">{error}</p>}

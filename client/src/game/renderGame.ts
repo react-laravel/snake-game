@@ -6,7 +6,7 @@ interface RenderGameOptions { context: CanvasRenderingContext2D; width: number; 
 
 export function getViewport(width: number, height: number, grid: GridSize, head: SnakeSegment | null): Viewport {
   const padding = width < 600 ? 12 : 24;
-  const cell = Math.max(12, Math.min((width - padding * 2) / grid.w, (height - padding * 2) / grid.h));
+  const cell = Math.max(8, Math.min((width - padding * 2) / grid.w, (height - padding * 2) / grid.h));
   // A mathematically exact full-board fit can round to 59.99999999999999.
   const columns = Math.min(grid.w, Math.max(1, Math.floor((width - padding * 2) / cell + 1e-8)));
   const rows = Math.min(grid.h, Math.max(1, Math.floor((height - padding * 2) / cell + 1e-8)));
@@ -49,11 +49,43 @@ function drawMinimap(context: CanvasRenderingContext2D, width: number, height: n
   context.strokeStyle = '#666'; context.lineWidth = 1; context.strokeRect(left, top, mapWidth, mapHeight);
   context.fillStyle = 'rgba(255,255,255,0.08)'; context.fillRect(left + view.x * scale, top + view.y * scale, view.columns * scale, view.rows * scale);
   context.strokeStyle = '#999'; context.strokeRect(left + view.x * scale, top + view.y * scale, view.columns * scale, view.rows * scale);
+  context.fillStyle = '#dadada';
+  for (const food of state.foods) {
+    context.beginPath();
+    context.arc(left + (food.x + 0.5) * scale, top + (food.y + 0.5) * scale, Math.max(1.2, scale * 0.35), 0, Math.PI * 2);
+    context.fill();
+  }
   for (const player of state.players) {
     if (!player.alive) continue;
+    context.globalAlpha = player.frozen ? 0.45 : 1;
     context.fillStyle = player.id === playerId ? '#fff' : player.color;
     for (const segment of player.snake) context.fillRect(left + segment.x * scale, top + segment.y * scale, Math.max(2, scale), Math.max(2, scale));
   }
+  context.globalAlpha = 1;
+}
+
+function drawEdgeFades(context: CanvasRenderingContext2D, grid: GridSize, view: Viewport) {
+  const { cell, columns, rows, offsetX, offsetY, x, y } = view;
+  const depth = Math.min(28, cell * 1.8);
+  const boardWidth = columns * cell;
+  const boardHeight = rows * cell;
+  const fade = (horizontal: boolean, atEnd: boolean) => {
+    const start = horizontal ? (atEnd ? offsetX + boardWidth - depth : offsetX) : (atEnd ? offsetY + boardHeight - depth : offsetY);
+    const gradient = horizontal
+      ? context.createLinearGradient(start, 0, start + depth, 0)
+      : context.createLinearGradient(0, start, 0, start + depth);
+    const solid = 'rgba(0,0,0,0.42)';
+    gradient.addColorStop(atEnd ? 1 : 0, solid);
+    gradient.addColorStop(atEnd ? 0 : 1, 'rgba(0,0,0,0)');
+    context.fillStyle = gradient;
+    context.fillRect(horizontal ? start : offsetX, horizontal ? offsetY : start, horizontal ? depth : boardWidth, horizontal ? boardHeight : depth);
+  };
+  context.save();
+  if (x > 0) fade(true, false);
+  if (y > 0) fade(false, false);
+  if (x + columns < grid.w) fade(true, true);
+  if (y + rows < grid.h) fade(false, true);
+  context.restore();
 }
 
 export function renderGame({ context, width, height, dpr, cache, gameState, playerId, gridSize }: RenderGameOptions) {
@@ -84,6 +116,8 @@ export function renderGame({ context, width, height, dpr, cache, gameState, play
   for (const player of gameState.players) {
     if (!player.alive || !player.snake.length) continue;
     const self = player.id === playerId;
+    context.save();
+    if (player.frozen) context.globalAlpha = 0.45;
     context.fillStyle = player.color;
     for (let i = player.snake.length - 1; i >= 0; i--) {
       const sx = player.snake[i].x - x, sy = player.snake[i].y - y;
@@ -101,7 +135,11 @@ export function renderGame({ context, width, height, dpr, cache, gameState, play
       // Keep the label inside the playable area even near its top edge.
       context.fillText(self ? `${player.name} · 你` : player.name, left + cell / 2, sy < 1 ? top + cell + 13 : top - 6, Math.min(120, columns * cell));
     }
+    context.restore();
   }
   context.restore();
-  if (view.cropped) drawMinimap(context, width, height, gridSize, view, gameState, playerId);
+  if (view.cropped) {
+    drawEdgeFades(context, gridSize, view);
+    drawMinimap(context, width, height, gridSize, view, gameState, playerId);
+  }
 }

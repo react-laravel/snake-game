@@ -6,6 +6,12 @@ export function reconnectDelay(attempt: number) {
   return Math.min(500 * 2 ** Math.max(0, attempt), 8000);
 }
 
+// Another tab may already have replaced this page's token. Only drop storage
+// when it still holds the token this page was using.
+export function shouldForgetStoredSession(storedToken: string | null, pageToken: string | null) {
+  return storedToken === null || storedToken === pageToken;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -20,6 +26,10 @@ function isPosition(value: unknown) {
 
 function isNullableString(value: unknown) {
   return value === null || typeof value === 'string';
+}
+
+function isDeathCause(value: unknown) {
+  return value === 'wall' || value === 'self' || value === 'head-on' || value === 'body';
 }
 
 // A malformed frame must not crash the game or replace the last valid board.
@@ -48,7 +58,8 @@ export function parseServerMessage(data: unknown): ServerMessage | null {
           typeof player.id === 'string' && typeof player.name === 'string' &&
           typeof player.color === 'string' && typeof player.alive === 'boolean' &&
           Array.isArray(player.snake) && player.snake.every(isPosition) &&
-          (player.dir === undefined || isDirection(player.dir)))) return null;
+          (player.dir === undefined || isDirection(player.dir)) &&
+          (player.frozen === undefined || typeof player.frozen === 'boolean'))) return null;
       if (!value.foods.every((food) => isRecord(food) && typeof food.id === 'string' && isPosition(food))) return null;
       if (!Object.values(value.scores).every((score) => isRecord(score) &&
           typeof score.score === 'number' && Number.isFinite(score.score) &&
@@ -56,10 +67,14 @@ export function parseServerMessage(data: unknown): ServerMessage | null {
       break;
     case 'playerDied':
       if (typeof value.victim !== 'string' || typeof value.victimName !== 'string' ||
-          !isNullableString(value.killer) || !isNullableString(value.killerName)) return null;
+          !isNullableString(value.killer) || !isNullableString(value.killerName) ||
+          (value.cause !== undefined && !isDeathCause(value.cause)) ||
+          (value.scoringKill !== undefined && typeof value.scoringKill !== 'boolean')) return null;
       break;
     case 'youDied':
-      if (!isNullableString(value.killerName)) return null;
+      if (!isNullableString(value.killerName) ||
+          (value.cause !== undefined && !isDeathCause(value.cause)) ||
+          (value.scoringKill !== undefined && typeof value.scoringKill !== 'boolean')) return null;
       break;
     case 'error':
       if (typeof value.code !== 'string' ||

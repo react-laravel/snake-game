@@ -81,7 +81,11 @@ test('a body stays solid until all collisions have resolved, even when its owner
     for (const id of order) snake(game, id, ...fixtures[id]);
     const deaths = game.tick();
     assert.equal(deaths.length, 2);
-    assert.equal(deaths.find(({ victim }) => victim.id === 'b').killer.id, 'a');
+    const bodyHit = deaths.find(({ victim }) => victim.id === 'b');
+    assert.equal(bodyHit.killer.id, 'a');
+    assert.equal(bodyHit.cause, 'body');
+    assert.equal(bodyHit.scoringKill, false);
+    assert.equal(deaths.find(({ victim }) => victim.id === 'a').cause, 'wall');
     assert.equal(game.players.get('a').score, 0);
   }
 });
@@ -90,7 +94,9 @@ test('head swaps collide even for length-one snakes', () => {
   const game = create();
   snake(game, 'a', [[4, 4]], 'right');
   snake(game, 'b', [[5, 4]], 'left');
-  assert.equal(game.tick().length, 2);
+  const deaths = game.tick();
+  assert.equal(deaths.length, 2);
+  assert.ok(deaths.every(event => event.cause === 'head-on' && event.scoringKill === false));
 });
 
 test('moving into a tail that vacates this tick is allowed', () => {
@@ -141,4 +147,54 @@ test('respawn preserves identity, color, and score, but resets movement and surv
   assert.deepEqual(revived.turns, []);
   game.tick();
   assert.equal(revived.score, 42);
+});
+
+test('open spawns face a long runway and can use a vertical gap', () => {
+  const vectors = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  const game = createGame({ width: 60, height: 40, foodCount: 15 });
+  for (let i = 0; i < 12; i++) {
+    const player = game.addPlayer(`runner-${i}`);
+    assert.ok(player);
+    const [dx, dy] = vectors[player.dir];
+    let lead = 0;
+    for (let step = 1; step <= 10; step++) {
+      const ahead = { x: player.snake[0].x + dx * step, y: player.snake[0].y + dy * step };
+      const blocked = ahead.x < 0 || ahead.x >= 60 || ahead.y < 0 || ahead.y >= 40
+        || [...game.players.values()].some(other => other.id !== player.id && other.snake.some(segment => segment.x === ahead.x && segment.y === ahead.y));
+      if (blocked) break;
+      lead++;
+    }
+    assert.ok(lead >= 8, `spawn lead ${lead} for ${player.dir} at ${player.snake[0].x},${player.snake[0].y}`);
+  }
+
+  const fragmented = createGame({ width: 60, height: 40, foodCount: 0 });
+  for (let x = 0; x < 60; x += 3) {
+    const snake = [];
+    for (let y = 0; y < 40; y++) snake.push({ x, y });
+    fragmented.players.set(`wall-${x}`, {
+      id: `wall-${x}`, name: 'wall', color: '#fff', snake, dir: 'up', turns: [], alive: true, score: 0, lastScoreTime: 0, deathTime: null,
+    });
+  }
+  const spawned = fragmented.addPlayer('gap');
+  assert.ok(spawned);
+  assert.equal(spawned.snake.every(segment => segment.x % 3 !== 0), true);
+});
+
+test('frozen snakes stay still, score no survival time, and still stop other snakes', () => {
+  let timestamp = 0;
+  const game = create({ now: () => timestamp });
+  const parked = snake(game, 'parked', [[5, 5], [5, 4], [5, 3]], 'up');
+  parked.frozen = true;
+  const mover = snake(game, 'mover', [[4, 5], [3, 5], [2, 5]], 'right');
+  timestamp = 5000;
+  const deaths = game.tick();
+  assert.equal(parked.alive, true);
+  assert.deepEqual(parked.snake[0], { x: 5, y: 5 });
+  assert.equal(parked.score, 100);
+  assert.equal(mover.alive, false);
+  assert.equal(deaths[0].cause, 'body');
+  assert.equal(deaths[0].scoringKill, true);
+  timestamp = 9000;
+  game.tick();
+  assert.equal(parked.score, 100);
 });

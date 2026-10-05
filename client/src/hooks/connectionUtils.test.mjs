@@ -7,7 +7,7 @@ const source = await readFile(new URL('./connectionUtils.ts', import.meta.url), 
 const { outputText } = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext },
 });
-const { parseServerMessage, reconnectDelay, MAX_RECONNECT_ATTEMPTS, reuseScores, readStored, writeStored } =
+const { parseServerMessage, reconnectDelay, MAX_RECONNECT_ATTEMPTS, reuseScores, readStored, writeStored, shouldForgetStoredSession } =
   await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 
 const frame = (value) => JSON.stringify(value);
@@ -35,6 +35,19 @@ test('malformed frames cannot replace valid board state', () => {
   assert.equal(parseServerMessage(frame({ ...gameState, foods: [{ id: 'f', x: '3', y: 4 }] })), null);
   assert.equal(parseServerMessage(frame({ ...gameState, scores: { p: { name: '蛇', alive: true, score: null } } })), null);
   assert.equal(parseServerMessage(frame({ type: 'welcome', playerId: 'p', gridWidth: 0, gridHeight: 40 })), null);
+  const death = { type: 'playerDied', victim: 'a', victimName: 'A', killer: null, killerName: null, cause: 'wall', scoringKill: false };
+  assert.deepEqual(parseServerMessage(frame(death)), death);
+  assert.deepEqual(parseServerMessage(frame({ type: 'youDied', killerName: 'B', cause: 'body', scoringKill: false })), { type: 'youDied', killerName: 'B', cause: 'body', scoringKill: false });
+  assert.equal(parseServerMessage(frame({ type: 'playerDied', victim: 'a', victimName: 'A', killer: null, killerName: null, cause: 'nope' })), null);
+  assert.equal(parseServerMessage(frame({ ...gameState, players: [{ ...gameState.players[0], frozen: true }] })).players[0].frozen, true);
+  assert.equal(parseServerMessage(frame({ ...gameState, players: [{ ...gameState.players[0], frozen: 'yes' }] })), null);
+});
+
+test('a displaced page forgets only the token it still owns', () => {
+  assert.equal(shouldForgetStoredSession('old-token', 'old-token'), true);
+  assert.equal(shouldForgetStoredSession(null, 'old-token'), true);
+  assert.equal(shouldForgetStoredSession('new-token', 'old-token'), false);
+  assert.equal(shouldForgetStoredSession('new-token', null), false);
 });
 
 test('bounded retry delays leave time for server session recovery', () => {

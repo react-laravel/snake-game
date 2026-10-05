@@ -78,6 +78,7 @@ export function createGameServer({ tickMs = 150, reconnectMs = 30000, idleStateM
     session.cleanupTimer = null;
     tokens.set(session.token, session.playerId);
     socket.playerId = session.playerId;
+    game.setFrozen(session.playerId, false);
     // Identity checks on every message/close keep a replaced socket from
     // controlling or deleting the newly resumed player.
     if (previousSocket && previousSocket !== socket) previousSocket.close(1000, 'Session resumed elsewhere');
@@ -164,25 +165,32 @@ export function createGameServer({ tickMs = 150, reconnectMs = 30000, idleStateM
         if (!session.socket && session.expiresAt <= Date.now()) removeSession(session);
       }, reconnectMs);
       session.cleanupTimer.unref();
+      // Keep the body as an obstacle, but stop driving it into walls while the player is gone.
+      game.setFrozen(session.playerId, true);
+      broadcastState();
     });
   });
 
-  const tickTimer = setInterval(() => {
-    if (![...game.players.values()].some(player => player.alive)) {
+  function step() {
+    const anyoneMoving = [...game.players.values()].some(player => player.alive && !player.frozen);
+    if (!anyoneMoving) {
       // Browsers cannot observe WebSocket ping/pong frames. A sparse snapshot
       // keeps their connection watchdog alive while the arena is idle.
       if (wss.clients.size && Date.now() - lastStateBroadcastAt >= idleStateMs) broadcastState();
       return;
     }
-    for (const { victim, killer } of game.tick()) {
-      if (killer) broadcast({
-        type: 'playerDied', victim: victim.id, victimName: victim.name, killer: killer.id, killerName: killer.name,
+    for (const { victim, killer, cause, scoringKill } of game.tick()) {
+      broadcast({
+        type: 'playerDied', victim: victim.id, victimName: victim.name,
+        killer: killer?.id || null, killerName: killer?.name || null, cause, scoringKill,
       }, victim.id);
       const socket = sessions.get(victim.id)?.socket;
-      if (socket) send(socket, JSON.stringify({ type: 'youDied', killerName: killer?.name || null }));
+      if (socket) send(socket, JSON.stringify({ type: 'youDied', killerName: killer?.name || null, cause, scoringKill }));
     }
     broadcastState();
-  }, tickMs);
+  }
+
+  const tickTimer = setInterval(step, tickMs);
 
   const heartbeatTimer = setInterval(() => {
     for (const socket of wss.clients) {
@@ -205,7 +213,7 @@ export function createGameServer({ tickMs = 150, reconnectMs = 30000, idleStateM
     if (server.listening) await new Promise(resolveClose => server.close(resolveClose));
   }
 
-  return { server, wss, game, close };
+  return { server, wss, game, close, step };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

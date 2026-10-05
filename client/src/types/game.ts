@@ -10,6 +10,7 @@ export interface Player {
   alive: boolean;
   color: string;
   dir?: Dir;
+  frozen?: boolean;
 }
 
 export interface Food {
@@ -37,12 +38,16 @@ export interface GridSize {
   h: number;
 }
 
+export type DeathCause = 'wall' | 'self' | 'head-on' | 'body';
+
 export interface DeathEvent {
   id: string;
   victim: string;
   victimName: string;
   killer: string | null;
   killerName: string | null;
+  cause?: DeathCause;
+  scoringKill?: boolean;
 }
 
 export interface JoystickState {
@@ -83,10 +88,14 @@ export type ServerMessage =
       victimName: string;
       killer: string | null;
       killerName: string | null;
+      cause?: DeathCause;
+      scoringKill?: boolean;
     }
   | {
       type: 'youDied';
       killerName: string | null;
+      cause?: DeathCause;
+      scoringKill?: boolean;
     }
   | {
       type: 'error';

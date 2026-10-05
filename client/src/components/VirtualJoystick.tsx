@@ -1,31 +1,35 @@
-import type { JoystickState } from '../types/game';
+import { useLayoutEffect, useRef, type RefObject } from 'react';
 
-interface VirtualJoystickProps {
-  joystick: JoystickState;
-  size: number;
+export interface JoystickVisual {
+  base: HTMLDivElement;
+  knob: HTMLDivElement;
 }
 
-export function VirtualJoystick({ joystick, size }: VirtualJoystickProps) {
-  if (!joystick.active) {
-    return null;
-  }
+interface VirtualJoystickProps {
+  active: boolean;
+  size: number;
+  visualRef: RefObject<JoystickVisual | null>;
+  onReady: () => void;
+}
+
+export function VirtualJoystick({ active, size, visualRef, onReady }: VirtualJoystickProps) {
+  const baseRef = useRef<HTMLDivElement>(null);
+  const knobRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!active || !baseRef.current || !knobRef.current) return;
+    visualRef.current = { base: baseRef.current, knob: knobRef.current };
+    onReady();
+    return () => {
+      if (visualRef.current?.base === baseRef.current) visualRef.current = null;
+    };
+  }, [active, onReady, visualRef]);
+
+  if (!active) return null;
 
   return (
-    <div
-      className="joystick-base"
-      style={{
-        left: joystick.baseX - size / 2,
-        top: joystick.baseY - size / 2,
-        width: size,
-        height: size,
-      }}
-    >
-      <div
-        className="joystick-knob"
-        style={{
-          transform: `translate(calc(-50% + ${joystick.dx}px), calc(-50% + ${joystick.dy}px))`,
-        }}
-      />
+    <div ref={baseRef} className="joystick-base" style={{ width: size, height: size }} aria-hidden="true">
+      <div ref={knobRef} className="joystick-knob" />
     </div>
   );
 }

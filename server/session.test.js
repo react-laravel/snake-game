@@ -157,6 +157,49 @@ test('idle snapshots keep the connection alive without advancing game simulation
   assert.deepEqual(heartbeat.foods, initial.foods);
 });
 
+test('disconnect freezes the snake until the session is resumed', async t => {
+  const server = await start(t);
+  const first = await server.connect();
+  first.send({ type: 'join', playerName: 'Frozen' });
+  const initial = await first.next('welcome');
+  const before = structuredClone(server.game.players.get(initial.playerId).snake[0]);
+  await disconnect(first);
+  const parked = server.game.players.get(initial.playerId);
+  assert.equal(parked.frozen, true);
+  server.game.tick();
+  server.game.tick();
+  assert.deepEqual(parked.snake[0], before);
+  assert.equal(parked.alive, true);
+  const second = await server.connect();
+  second.send({ type: 'rejoin', token: initial.reconnectToken });
+  await second.next('welcome');
+  assert.equal(server.game.players.get(initial.playerId).frozen, false);
+  const resumedHead = structuredClone(server.game.players.get(initial.playerId).snake[0]);
+  server.game.tick();
+  assert.notDeepEqual(server.game.players.get(initial.playerId).snake[0], resumedHead);
+});
+
+test('observers hear wall deaths as collisions without kill credit', async t => {
+  const server = await start(t);
+  const victim = await server.connect();
+  victim.send({ type: 'join', playerName: 'Wall' });
+  const welcome = await victim.next('welcome');
+  const observer = await server.connect();
+  observer.send({ type: 'join', playerName: 'Watcher' });
+  await observer.next('welcome');
+  const player = server.game.players.get(welcome.playerId);
+  player.snake = [{ x: 59, y: 5 }, { x: 58, y: 5 }, { x: 57, y: 5 }];
+  player.dir = 'right';
+  player.turns = [];
+  server.step();
+  const died = await observer.next('playerDied');
+  assert.equal(died.victim, welcome.playerId);
+  assert.equal(died.killer, null);
+  assert.equal(died.cause, 'wall');
+  assert.equal(died.scoringKill, false);
+  assert.equal((await victim.next('youDied')).cause, 'wall');
+});
+
 test('intentional leave removes the snake immediately and invalidates its token', async t => {
   const server = await start(t, 1000);
   const first = await server.connect();

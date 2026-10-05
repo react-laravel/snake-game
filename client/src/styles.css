@@ -16,7 +16,7 @@ button { transition: background .15s, border-color .15s; }
 .app-shell { height: 100%; height: 100dvh; }
 .brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: #ededed; color: #252525; font-size: 23px; font-weight: 800; flex-shrink: 0; }
 .eyebrow { color: #a4a4a4; font-size: 11px; font-weight: 600; letter-spacing: .16em; }
-.join-screen { height: 100%; overflow-y: auto; padding: 36px max(24px, calc((100vw - 1100px) / 2)); background: #1c1c1c; }
+.join-screen { height: 100%; overflow-y: auto; padding: max(36px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right), calc((100vw - 1100px) / 2)) max(36px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left), calc((100vw - 1100px) / 2)); background: #1c1c1c; }
 .lobby-header { display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 600; letter-spacing: .12em; margin-bottom: 48px; }
 .lobby-tag { margin-left: auto; font-size: 11px; letter-spacing: .06em; padding: 7px 12px; border: 1px solid #3b3b3b; border-radius: 20px; color: #bcbcbc; }
 .join-card { display: grid; grid-template-columns: 1.2fr 1fr; gap: 48px; align-items: center; border: 1px solid #3b3b3b; border-radius: 20px; padding: 48px; background: #242424; }
@@ -71,9 +71,11 @@ kbd { font-family: inherit; font-size: 10px; padding: 2px 5px; border: 1px solid
 .score-row { display: flex; align-items: center; gap: 10px; padding: 12px 8px; border-bottom: 1px solid #343434; border-radius: 5px; }
 .score-row-self { background: #ffffff08; }
 .score-rank { width: 18px; font-size: 11px; color: #777; font-variant-numeric: tabular-nums; }
-.score-name { flex: 1; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.score-name small { margin-left: 6px; font-size: 9px; background: #414141; color: #bbb; padding: 1px 4px; border-radius: 3px; }
-.score-player-status { display: block; font-size: 9px; color: #818181; margin-top: 4px; }
+.score-identity { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.score-name { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 12px; }
+.score-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-name small { flex: none; font-size: 9px; background: #414141; color: #bbb; padding: 1px 4px; border-radius: 3px; }
+.score-player-status { font-size: 9px; color: #818181; }
 .score-points { font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .score-faded { color: #858585; }
 .scoreboard-empty { font-size: 12px; color: #888; padding: 12px 8px; }
@@ -96,7 +98,7 @@ kbd { font-family: inherit; font-size: 10px; padding: 2px 5px; border: 1px solid
 .death-score span { font-size: 11px; color: #999; }
 .death-card .primary-button { display: block; width: 100%; }
 .death-card .text-button { margin-top: 8px; }
-.death-feed { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; z-index: 5; max-width: calc(100% - 24px); }
+.death-feed { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; z-index: 12; max-width: min(240px, 46%); }
 .death-toast { color: #bfbfbf; border: 1px solid #484848; background: #202020ea; font-size: 11px; padding: 8px 12px; border-radius: 6px; overflow-wrap: anywhere; }
 .death-toast b { font-weight: 500; color: #eee; }
 .joystick-base { position: fixed; border-radius: 50%; border: 1px solid #ffffff40; background: #77777740; user-select: none; pointer-events: none; z-index: 8; }
@@ -111,8 +113,8 @@ kbd { font-family: inherit; font-size: 10px; padding: 2px 5px; border: 1px solid
   .mobile-hint { display: inline; } .desktop-hint { display: none; }
   .secondary-button { min-height: 44px; }
 }
-@media (max-width: 760px) {
-  .join-screen { padding: 24px 20px; }
+@media (max-width: 1099px) {
+  .join-screen { padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
   .lobby-header { margin-bottom: 28px; }
   .join-card { padding: 28px; gap: 24px; grid-template-columns: 1fr; }
   .arena-preview { display: none; }
@@ -120,11 +122,6 @@ kbd { font-family: inherit; font-size: 10px; padding: 2px 5px; border: 1px solid
   .lobby-rules { grid-template-columns: 1fr; gap: 20px; margin: 28px 0; }
   .lobby-footer span { display: none; }
   .game-layout { padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); gap: 8px; }
-  .game-topbar { min-height: 46px; gap: 10px; flex-wrap: wrap; }
-  .game-brand { gap: 8px; } .game-brand strong { font-size: 10px; } .game-brand div > span { display: none; } .brand-mark { width: 28px; height: 28px; font-size: 20px; }
-  .session-status { font-size: 9px; gap: 4px; }
-  .score-badge { gap: 6px; } .score-badge span { font-size: 9px; } .score-badge strong { font-size: 22px; }
-  .fullscreen-button { display: none; } .game-actions { gap: 4px; } .secondary-button { padding: 8px 10px; }
   .game-stage { display: flex; flex-direction: column; gap: 8px; }
   .arena { flex: 1; }
   .scoreboard { flex-shrink: 0; border-radius: 8px; }
@@ -133,7 +130,17 @@ kbd { font-family: inherit; font-size: 10px; padding: 2px 5px; border: 1px solid
   .scoreboard-toggle span { font-size: 10px; color: #999; }
   .scoreboard-list { display: none; max-height: min(180px, 25dvh); flex: none; }
   .scoreboard-expanded .scoreboard-list { display: block; }
-  .score-row { padding: 8px; } .score-player-status { display: inline; margin-left: 6px; } .scoreboard-columns { padding: 4px 8px; }
+  .score-identity { flex-direction: row; align-items: baseline; }
+  .score-name { flex: 1; }
+  .score-player-status { flex: none; }
+  .score-row { padding: 8px; } .scoreboard-columns { padding: 4px 8px; }
+}
+@media (max-width: 760px) {
+  .game-topbar { min-height: 46px; gap: 10px; flex-wrap: wrap; }
+  .game-brand { gap: 8px; } .game-brand strong { font-size: 10px; } .game-brand div > span { display: none; } .brand-mark { width: 28px; height: 28px; font-size: 20px; }
+  .session-status { font-size: 9px; gap: 4px; }
+  .score-badge { gap: 6px; } .score-badge span { font-size: 9px; } .score-badge strong { font-size: 22px; }
+  .fullscreen-button { display: none; } .game-actions { gap: 4px; } .secondary-button { padding: 8px 10px; }
   .game-footer { font-size: 9px; gap: 8px; } .desktop-hint { display: none; }
   .game-footer kbd { font-size: 9px; padding: 1px 3px; }
 }
@@ -147,7 +154,7 @@ kbd { font-family: inherit; font-size: 10px; padding: 2px 5px; border: 1px solid
   .game-stage { display: grid; grid-template-columns: minmax(0, 1fr) 180px; }
   .scoreboard { height: 100%; } .scoreboard-heading { padding: 12px; display: flex; } .scoreboard-heading .eyebrow { display: none; } .scoreboard h2 { margin: 0; font-size: 13px; }
   .scoreboard-list { display: block; max-height: none; flex: 1; } .scoreboard-toggle, .scoreboard-note { display: none; }
-  .game-footer { min-height: 16px; }
+  .game-footer { display: none; }
   .death-card { width: min(400px, 100%); } .death-icon { display: none; } .death-card h2 { margin: 8px 0; font-size: 20px; } .death-card p { margin: 8px 0 12px; } .death-score { flex-direction: row; align-items: baseline; justify-content: center; margin-bottom: 12px; } .death-score strong { font-size: 24px; } .death-card .text-button { margin-top: 2px; padding: 8px; }
 }
 @media (prefers-reduced-motion: reduce) { button { transition: none; } }

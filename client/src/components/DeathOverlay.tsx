@@ -15,7 +15,7 @@ export function DeathOverlay({ score, reason, disabled, respawning, onRespawn, o
   useEffect(() => {
     if (buttonRef.current && !buttonRef.current.disabled) buttonRef.current.focus();
     else cardRef.current?.focus();
-  }, []);
+  }, [disabled, respawning]);
 
   return (
     <div className="death-overlay" data-no-joystick>

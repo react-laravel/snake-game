@@ -163,5 +163,33 @@ try {
     assert.deepEqual(errors, []); results.push('spawn rejection stays dead, unmount keeps recovery token and cancels timers');
     await context.close();
   }
+  {
+    const { page, context, errors } = await fixture();
+    await act(page, 'connect', '接管蛇'); await open(page); await emit(page, welcome); await emit(page, state()); await expectStatus(page, 'connected');
+    await page.evaluate(() => window.__mockSockets[0].close(1000, 'Session resumed elsewhere'));
+    await expectStatus(page, 'idle');
+    const moved = await snapshot(page);
+    assert.equal(moved.joined, false);
+    assert.match(moved.error, /另一个页面/);
+    await page.clock.runFor(20000);
+    assert.equal(await page.evaluate(() => window.__mockSockets.length), 1);
+    assert.deepEqual(errors, []); results.push('session takeover returns to the lobby without opening another snake');
+    await context.close();
+  }
+  {
+    const { page, context, errors } = await fixture();
+    await act(page, 'connect', '过期局内蛇'); await open(page); await emit(page, welcome); await emit(page, state()); await expectStatus(page, 'connected');
+    await page.evaluate(() => window.__mockSockets[0].fail()); await expectStatus(page, 'reconnecting');
+    await page.clock.runFor(500); await open(page);
+    assert.deepEqual(await sent(page), [{ type: 'rejoin', token: 'token-1' }]);
+    await emit(page, { type: 'error', code: 'invalid_token' });
+    await expectStatus(page, 'idle');
+    assert.equal((await sent(page)).some((message) => message.type === 'join'), false);
+    assert.match((await snapshot(page)).error, /重新进入/);
+    await page.clock.runFor(20000);
+    assert.equal(await page.evaluate(() => window.__mockSockets.length), 2);
+    assert.deepEqual(errors, []); results.push('expired token after a live session returns to the lobby');
+    await context.close();
+  }
   console.log(JSON.stringify({ passed: results.length, results }, null, 2));
 } finally { await browser.close(); }

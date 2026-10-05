@@ -25,7 +25,7 @@ test('small-screen cameras keep every head position visible without leaving boar
     for (const head of [{ x: 0, y: 0 }, { x: 30, y: 20 }, { x: 59, y: 39 }]) {
       const view = getViewport(width, height, grid, head);
       assert.equal(view.cropped, true);
-      assert.ok(view.cell >= 12);
+      assert.ok(view.cell >= 8);
       assert.ok(view.x >= 0 && view.y >= 0);
       assert.ok(view.x + view.columns <= grid.w && view.y + view.rows <= grid.h);
       assert.ok(head.x >= view.x && head.x < view.x + view.columns);

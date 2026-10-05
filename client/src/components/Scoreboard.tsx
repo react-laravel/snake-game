@@ -20,7 +20,7 @@ export const Scoreboard = memo(function Scoreboard({ sortedScores, playerId }: S
         {sortedScores.map(([id, entry], index) => (
           <div key={id} className={`score-row ${id === playerId ? 'score-row-self' : ''}`}>
             <span className="score-rank">{String(index + 1).padStart(2, '0')}</span>
-            <span className="score-name" title={entry.name}>{entry.name}{id === playerId && <small>你</small>}<span className="score-player-status">{entry.alive ? '对局中' : '已出局'}</span></span>
+            <span className="score-identity"><span className="score-name" title={entry.name}><span className="score-name-text">{entry.name}</span>{id === playerId && <small>你</small>}</span><span className="score-player-status">{entry.alive ? '对局中' : '已出局'}</span></span>
             <span className={`score-points ${!entry.alive ? 'score-faded' : ''}`}>{entry.score}</span>
           </div>
         ))}

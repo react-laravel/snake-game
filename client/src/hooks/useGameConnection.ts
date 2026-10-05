@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_GRID_SIZE } from '../game/constants';
 import type { ConnectionStatus, DeathEvent, Dir, GameState, GridSize } from '../types/game';
-import { MAX_RECONNECT_ATTEMPTS, parseServerMessage, readStored, reconnectDelay, reuseScores, writeStored } from './connectionUtils';
+import { MAX_RECONNECT_ATTEMPTS, parseServerMessage, readStored, reconnectDelay, reuseScores, shouldForgetStoredSession, writeStored } from './connectionUtils';
 
 const HANDSHAKE_TIMEOUT_MS = 8000;
 const SILENCE_TIMEOUT_MS = 15000;
 const RESPAWN_TIMEOUT_MS = 6000;
+const DEATH_TOAST_MS = 8000;
+const SESSION_MOVED_REASON = 'Session resumed elsewhere';
 
 function storedName() {
   return (readStored('snake_name') ?? readStored('snake_playerName'))?.trim().slice(0, 20) || '匿名蛇';
@@ -18,6 +20,12 @@ function createDeathId(victim: string) {
 function clearTimer(ref: { current: number | null }) {
   if (ref.current !== null) window.clearTimeout(ref.current);
   ref.current = null;
+}
+
+function forgetStoredSession(pageToken: string | null) {
+  if (!shouldForgetStoredSession(readStored('snake_token'), pageToken)) return;
+  writeStored('snake_token', null);
+  writeStored('snake_playerId', null);
 }
 
 export function useGameConnection() {
@@ -37,6 +45,7 @@ export function useGameConnection() {
   const desiredConnectionRef = useRef(false);
   const mountedRef = useRef(false);
   const deadRef = useRef(false);
+  const hadSessionRef = useRef(false);
   const respawningRef = useRef(false);
   const startSocketRef = useRef<(reconnecting: boolean) => void>(() => {});
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -69,13 +78,37 @@ export function useGameConnection() {
     socket.close(code, reason);
   }, []);
 
+  const returnToLobby = useCallback((message: string) => {
+    desiredConnectionRef.current = false;
+    hadSessionRef.current = false;
+    clearTimer(reconnectTimerRef);
+    detachSocket();
+    finishRespawn();
+    forgetStoredSession(tokenRef.current);
+    tokenRef.current = null;
+    playerIdRef.current = null;
+    gameStateRef.current = null;
+    deadRef.current = false;
+    reconnectAttemptRef.current = 0;
+    deathTimersRef.current.forEach(window.clearTimeout);
+    deathTimersRef.current.clear();
+    setGameState(null);
+    setPlayerId(null);
+    setGridSize(DEFAULT_GRID_SIZE);
+    setJoined(false);
+    setIsDead(false);
+    setDeaths([]);
+    setConnectionStatus('idle');
+    setConnectionError(message);
+  }, [detachSocket, finishRespawn]);
+
   const addDeath = useCallback((death: Omit<DeathEvent, 'id'>) => {
     const item = { ...death, id: createDeathId(death.victim) };
     setDeaths((current) => [...current.slice(-4), item]);
     const timer = window.setTimeout(() => {
       setDeaths((current) => current.filter((entry) => entry.id !== item.id));
       deathTimersRef.current.delete(timer);
-    }, 3000);
+    }, DEATH_TOAST_MS);
     deathTimersRef.current.add(timer);
   }, []);
 
@@ -154,12 +187,15 @@ export function useGameConnection() {
 
       if (message.type === 'error') {
         if (waitingForWelcome && requestedRejoin && message.code === 'invalid_token') {
+          if (hadSessionRef.current) {
+            returnToLobby('连接已过期，请重新进入竞技场。');
+            return;
+          }
           requestedRejoin = false;
+          forgetStoredSession(tokenRef.current);
           tokenRef.current = null;
           playerIdRef.current = null;
           gameStateRef.current = null;
-          writeStored('snake_token', null);
-          writeStored('snake_playerId', null);
           setPlayerId(null);
           setGameState(null);
           armHandshakeTimeout();
@@ -183,6 +219,7 @@ export function useGameConnection() {
         clearTimer(handshakeTimerRef);
         reconnectAttemptRef.current = 0;
         playerIdRef.current = message.playerId;
+        hadSessionRef.current = true;
         deadRef.current = message.alive === false;
         setPlayerId(message.playerId);
         setGridSize({ w: message.gridWidth, h: message.gridHeight });
@@ -229,7 +266,8 @@ export function useGameConnection() {
 
       if (message.type === 'playerDied') {
         addDeath({ victim: message.victim, victimName: message.victimName,
-          killer: message.killer, killerName: message.killerName });
+          killer: message.killer, killerName: message.killerName,
+          cause: message.cause, scoringKill: message.scoringKill });
         return;
       }
 
@@ -238,13 +276,20 @@ export function useGameConnection() {
         setIsDead(true);
         finishRespawn();
         addDeath({ victim: playerIdRef.current || 'you', victimName: '你',
-          killer: null, killerName: message.killerName });
+          killer: null, killerName: message.killerName,
+          cause: message.cause, scoringKill: message.scoringKill });
       }
     };
 
     socket.onerror = () => handleFailure('无法连接服务器，正在尝试重新连接。');
-    socket.onclose = () => handleFailure('连接已中断，正在尝试重新连接。');
-  }, [addDeath, detachSocket, finishRespawn]);
+    socket.onclose = (event) => {
+      if (event.reason === SESSION_MOVED_REASON) {
+        returnToLobby('已在另一个页面继续。这一页已回到大厅。');
+        return;
+      }
+      handleFailure('连接已中断，正在尝试重新连接。');
+    };
+  }, [addDeath, detachSocket, finishRespawn, returnToLobby]);
 
   useEffect(() => {
     startSocketRef.current = startSocket;
@@ -282,13 +327,13 @@ export function useGameConnection() {
     clearTimer(reconnectTimerRef);
     detachSocket(4001, 'leave');
     finishRespawn();
+    forgetStoredSession(tokenRef.current);
     tokenRef.current = null;
     playerIdRef.current = null;
     gameStateRef.current = null;
     deadRef.current = false;
+    hadSessionRef.current = false;
     reconnectAttemptRef.current = 0;
-    writeStored('snake_token', null);
-    writeStored('snake_playerId', null);
     deathTimersRef.current.forEach(window.clearTimeout);
     deathTimersRef.current.clear();
     setGameState(null);
