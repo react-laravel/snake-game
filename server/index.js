@@ -2,6 +2,7 @@ import express from 'express';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createGame } from './game.js';
@@ -216,7 +217,8 @@ export function createGameServer({ tickMs = 150, reconnectMs = 30000, idleStateM
   return { server, wss, game, close, step };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+const entryPath = process.env.pm_exec_path || process.argv[1];
+if (entryPath && import.meta.url === pathToFileURL(realpathSync(resolve(entryPath))).href) {
   const { server } = createGameServer();
   const port = process.env.PORT || 3333;
   server.listen(port, '0.0.0.0', () => console.log(`Snake server running on port ${port}`));
