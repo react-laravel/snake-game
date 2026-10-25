@@ -1,0 +1,9 @@
+{
+  "name": "snake-game",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "package:runtime": "node scripts/package-runtime.mjs",
+    "deploy:b": "bash scripts/deploy-to-b.sh"
+  }
+}

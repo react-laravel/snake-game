@@ -162,9 +162,19 @@ export function createGameServer({ tickMs = 150, reconnectMs = 30000, idleStateM
       }
       session.socket = null;
       session.expiresAt = Date.now() + reconnectMs;
-      session.cleanupTimer = setTimeout(() => {
-        if (!session.socket && session.expiresAt <= Date.now()) removeSession(session);
-      }, reconnectMs);
+      const expireWhenDue = () => {
+        if (session.socket) return;
+        const remainingMs = session.expiresAt - Date.now();
+        // Timer rounding or a wall-clock adjustment can fire before expiresAt.
+        // Recheck at the deadline instead of leaking a frozen session forever.
+        if (remainingMs > 0) {
+          session.cleanupTimer = setTimeout(expireWhenDue, remainingMs);
+          session.cleanupTimer.unref();
+          return;
+        }
+        removeSession(session);
+      };
+      session.cleanupTimer = setTimeout(expireWhenDue, reconnectMs);
       session.cleanupTimer.unref();
       // Keep the body as an obstacle, but stop driving it into walls while the player is gone.
       game.setFrozen(session.playerId, true);
@@ -221,5 +231,5 @@ const entryPath = process.env.pm_exec_path || process.argv[1];
 if (entryPath && import.meta.url === pathToFileURL(realpathSync(resolve(entryPath))).href) {
   const { server } = createGameServer();
   const port = process.env.PORT || 3333;
-  server.listen(port, '0.0.0.0', () => console.log(`Snake server running on port ${port}`));
+  server.listen(port, process.env.HOST || '127.0.0.1', () => console.log(`Snake server running on port ${port}`));
 }

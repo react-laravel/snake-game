@@ -40,6 +40,14 @@ async function start(t, reconnectMs = 80, options = {}) {
   return { ...instance, connect };
 }
 
+async function waitFor(predicate, message) {
+  const deadline = Date.now() + 1500;
+  while (!predicate()) {
+    assert.ok(Date.now() < deadline, message);
+    await delay(10);
+  }
+}
+
 async function disconnect(client, code = 1000) {
   const closed = once(client.socket, 'close');
   client.socket.close(code);
@@ -60,9 +68,11 @@ test('connected session tokens stay usable beyond the reconnect grace duration',
   assert.notEqual(resumed.reconnectToken, initial.reconnectToken);
   await delay(120); // The first socket's cleanup cannot remove this player.
   assert.ok(server.game.players.has(initial.playerId));
-  second.send({ type: 'direction', dir: 'up' });
-  await delay(20);
-  assert.deepEqual(server.game.players.get(initial.playerId).turns, ['up']);
+  const player = server.game.players.get(initial.playerId);
+  const turn = ['left', 'right'].includes(player.dir) ? 'up' : 'left';
+  second.send({ type: 'direction', dir: turn });
+  await waitFor(() => player.turns.length > 0, 'resumed socket should accept a valid turn');
+  assert.deepEqual(player.turns, [turn]);
 });
 
 test('dead rejoin stays dead and only explicit respawn revives the player', async t => {
@@ -138,13 +148,26 @@ test('expired tokens reject explicitly, remove the session, and permit a fresh j
   const initial = await first.next('welcome');
   assert.equal(server.game.players.get(initial.playerId).name, 'Player');
   await disconnect(first);
-  await delay(120);
+  await waitFor(() => !server.game.players.has(initial.playerId), 'expired session should be removed');
   assert.equal(server.game.players.has(initial.playerId), false);
   const second = await server.connect();
   second.send({ type: 'rejoin', token: initial.reconnectToken });
   assert.equal((await second.next('error')).code, 'invalid_token');
   second.send({ type: 'join', playerName: 'Fresh' });
   assert.notEqual((await second.next('welcome')).playerId, initial.playerId);
+});
+
+test('session cleanup reschedules when the wall clock moves behind the expiry', async t => {
+  const server = await start(t);
+  const first = await server.connect();
+  first.send({ type: 'join', playerName: 'Clock drift' });
+  const initial = await first.next('welcome');
+  await disconnect(first);
+  const realDateNow = Date.now.bind(Date);
+  t.mock.method(Date, 'now', () => realDateNow() - 100);
+  await delay(100);
+  t.mock.restoreAll();
+  await waitFor(() => !server.game.players.has(initial.playerId), 'clock drift must not leak a frozen session');
 });
 
 test('idle snapshots keep the connection alive without advancing game simulation', async t => {

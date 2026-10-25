@@ -17,22 +17,22 @@
 
 1. 安装后端依赖
    - `cd server`
-   - `npm install`
+   - `pnpm install`
 2. 启动后端
-   - `npm run dev`
+   - `pnpm run dev`
 3. 新开终端安装前端依赖
    - `cd client`
-   - `npm install`
+   - `pnpm install`
 4. 启动前端
-   - `npm run dev`
+   - `pnpm run dev`
 5. 打开浏览器访问前端地址（默认 `http://localhost:5173/snake/`）
 
 ## 生产构建
 
 1. 构建前端
-   - `cd client && npm run build`
+   - `cd client && pnpm run build`
 2. 启动服务端
-   - `cd server && npm run start`
+   - `cd server && pnpm run start`
 
 ## 玩法说明
 
@@ -60,13 +60,35 @@
 ```sh
 cd client
 npm test
-npm run build
+pnpm run build
 cd ../server
 npm test
 ```
 
 服务端测试覆盖出生、食物、碰撞、连续转向、积分、重连、旧连接隔离、空闲保活和主动退出。客户端测试覆盖消息解析、重试退避、排行榜复用和禁用存储。
 
-启动 Vite 后可运行 `cd client && npm run test:browser`，用 Chromium 验证连接生命周期（需要已安装的 Playwright；可通过 `PLAYWRIGHT_MODULE` 指定现有模块路径）。此测试使用可控 WebSocket 和时钟，不创建真实对局。
+启动 Vite 后可运行 `cd client && pnpm run test:browser`，用 Chromium 验证连接生命周期（需要已安装的 Playwright；可通过 `PLAYWRIGHT_MODULE` 指定现有模块路径）。此测试使用可控 WebSocket 和时钟，不创建真实对局。
 
 浏览器自动化入口为 `window.render_game_to_text()` 和 `window.advanceTime(ms)`。后者等待真实时间，游戏状态由服务器推进；不会在客户端预测服务器结果。
+
+## Production deployment (server B)
+
+Production now runs on `154.21.197.138`, managed by `migrated-a-*.service`
+(systemd), with each application bound to localhost. GitHub Actions builds on
+our self-hosted runner and uploads only production runtime files to B. It no
+longer starts PM2 applications on server A.
+
+Configure repository secrets `B_DEPLOY_SSH_KEY` (the dedicated `web-deploy` key)
+and `B_DEPLOY_KNOWN_HOSTS` (the pinned B host key). Never commit either value.
+The server-side `sudo -n /usr/local/sbin/deploy-experiments APP COMMIT_SHA`
+validates and activates each upload, verifies local health, and retains only
+the active release after success. Uploads go to an isolated `.incoming-SHA`
+directory. A failed activation restores the previous current link.
+
+Use **Actions → production deployment → Run workflow** for manual releases.
+The retired `deploy.php` intentionally refuses to run, preventing accidental
+redeployment to A. `scripts/deploy-to-b.sh` is also available after building and
+packaging `.deploy-runtime`, with the same secret environment variables.
+
+Dependency installs use pinned pnpm 10.33.0 and frozen pnpm lockfiles. B only
+receives the packed runtime and never installs build/development dependencies.

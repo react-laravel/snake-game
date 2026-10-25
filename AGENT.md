@@ -11,10 +11,10 @@ This file is for AI coding agents collaborating on this repository.
 
 ## Run Commands
 
-- Frontend dev: `cd client && npm install && npm run dev`
-- Frontend build: `cd client && npm run build`
-- Backend dev: `cd server && npm install && npm run dev`
-- Backend start: `cd server && npm run start`
+- Frontend dev: `cd client && pnpm install && pnpm run dev`
+- Frontend build: `cd client && pnpm run build`
+- Backend dev: `cd server && pnpm install && pnpm run dev`
+- Backend start: `cd server && pnpm run start`
 
 ## Architecture Notes
 
@@ -30,7 +30,7 @@ This file is for AI coding agents collaborating on this repository.
 - Prefer small, focused files over one giant component.
 - Keep data updates immutable in React state updates.
 - Preserve current gameplay protocol message types (`join`, `rejoin`, `direction`, `respawn`, `gameState`, `playerDied`, `youDied`).
-- Validate with `npm run build` in `client/` after frontend edits.
+- Validate with `pnpm run build` in `client/` after frontend edits.
 - Avoid destructive git commands.
 
 ## UI Direction
