@@ -205,3 +205,9 @@ Original prompt: 改进代码，提取组件化
 - Keyboard steering now prefers physical WASD positions (`event.code`) and falls back to the letter or arrow `key`, so the same key cluster works on AZERTY and similar layouts. QWERTY behavior is unchanged.
 - Pure helper `keyDirection` lives in `client/src/game/keyDirection.ts` with Node unit tests wired into `pnpm test`. No joystick, camera, protocol, or scoring/collision changes.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 name plates
+
+- Snake names now sit on a compact dark plate so they stay readable on the checkerboard and over light bodies. Your own caption is still 「名字 · 你」. Who gets a name, and when, is unchanged.
+- Pure helpers live in `client/src/game/namePlate.ts` with Node unit tests wired into `pnpm test`. No camera, body, joystick, keyboard, food, board, HUD, protocol, or scoring/collision changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.

@@ -3,6 +3,7 @@ import { cameraLeadDir, cameraLeadFocus } from './cameraLead';
 import { bodyTaper } from './bodyTaper';
 import { cellFill, visibleBoardCells } from './boardPattern';
 import { foodColors, foodHighlightOffset, foodRadii, minimapFoodRadius } from './foodMark';
+import { nameCaption, namePlateRect, nameTextWidth } from './namePlate';
 
 interface Viewport { cell: number; x: number; y: number; columns: number; rows: number; offsetX: number; offsetY: number; cropped: boolean; }
 export interface SnakeTrack { previous: SnakeSegment[] | null; current: SnakeSegment[]; }
@@ -379,10 +380,20 @@ export function renderGame({ context, width, height, dpr, cache, gameState, play
       for (const [ex, ey] of points) { context.beginPath(); context.arc(headLeft + ex * cell, headTop + ey * cell, Math.max(1.2, cell * 0.08), 0, Math.PI * 2); context.fill(); }
       const selfHead = currentPlayer?.alive ? currentPlayer.snake[0] ?? null : null;
       if (shouldShowSnakeName(self, selfHead, tip, showAllNames)) {
-        context.fillStyle = self ? '#f0f0f0' : '#b9b9b9';
+        const caption = nameCaption(player.name, self);
+        const maxWidth = Math.min(120, columns * cell);
+        const centerX = headLeft + cell / 2;
+        const baselineY = tip.y - y < 1 ? headTop + cell + 13 : headTop - 6;
         context.font = `${self ? '600' : '400'} 11px sans-serif`;
         context.textAlign = 'center';
-        context.fillText(self ? `${player.name} · 你` : player.name, headLeft + cell / 2, tip.y - y < 1 ? headTop + cell + 13 : headTop - 6, Math.min(120, columns * cell));
+        const box = namePlateRect(centerX, baselineY, nameTextWidth(context.measureText(caption).width, maxWidth));
+        context.fillStyle = '#101010c7';
+        context.beginPath();
+        if (typeof context.roundRect === 'function') context.roundRect(box.x, box.y, box.w, box.h, 3);
+        else context.rect(box.x, box.y, box.w, box.h);
+        context.fill();
+        context.fillStyle = self ? '#f0f0f0' : '#d0d0d0';
+        context.fillText(caption, centerX, baselineY, maxWidth);
       }
       if (self && pendingDirs.length) {
         context.fillStyle = '#eaeaea';
