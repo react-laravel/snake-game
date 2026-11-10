@@ -106,3 +106,10 @@ Original prompt: 改进代码，提取组件化
 - Respawn and `prefers-reduced-motion` still snap immediately back to self. Pan duration scales with distance and stays brief.
 - Pure helpers (`startCameraPan`, `mixCameraHead`, `cameraPanDuration`) live in `client/src/game/spectator.ts` with added Node unit tests.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`. No protocol or scoring/collision changes.
+
+## 2026-11-10 spawn runway hint
+
+- After joining or respawning, the local snake's preferred open lead is marked for 1.2s (eight ticks): a dashed grayscale lane and footer copy such as 「前方 8 格开阔」.
+- The helper matches the server runway rule: walls and snake bodies stop the lead, food does not. No scoring, collision, or protocol changes.
+- Pure helpers live in `client/src/game/runway.ts` with Node unit tests wired into `pnpm test`.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.

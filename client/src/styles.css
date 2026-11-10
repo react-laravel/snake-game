@@ -115,6 +115,7 @@ kbd { font-family: inherit; font-size: 10px; padding: 2px 5px; border: 1px solid
 .death-toast b { font-weight: 500; color: #eee; }
 .death-toast-kill { border-color: #6d6d6d; color: #e0e0e0; }
 .turn-queue-hint { color: #b9b9b9; }
+.runway-hint { color: #c6c6c6; }
 .threat-hint { color: #c4a3a3; }
 .joystick-base { position: fixed; border-radius: 50%; border: 1px solid #ffffff40; background: #77777740; user-select: none; pointer-events: none; z-index: 8; }
 .joystick-knob { position: absolute; left: 50%; top: 50%; width: 42px; height: 42px; border-radius: 50%; background: #d8d8d8aa; border: 1px solid #eee; }

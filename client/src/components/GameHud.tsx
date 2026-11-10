@@ -41,9 +41,10 @@ interface GameHudProps {
   onRetry: () => void;
   onDirectionChange: (direction: Dir) => void;
   watchingLabel?: string | null;
+  runwayHint?: string | null;
 }
 
-export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound, joystickActive, joystickSize, joystickVisualRef, onJoystickReady, playerId, score, personalBest, pendingDirs, gameState, gridSize, sortedScores, frozenPlayerIds, connectionStatus, connectionError, latencyMs, respawning, onRespawn, onLeave, onRetry, onDirectionChange, watchingLabel = null }: GameHudProps) {
+export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound, joystickActive, joystickSize, joystickVisualRef, onJoystickReady, playerId, score, personalBest, pendingDirs, gameState, gridSize, sortedScores, frozenPlayerIds, connectionStatus, connectionError, latencyMs, respawning, onRespawn, onLeave, onRetry, onDirectionChange, watchingLabel = null, runwayHint = null }: GameHudProps) {
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState('');
   const [inviteLabel, setInviteLabel] = useState('邀请');
@@ -129,7 +130,7 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
         <Scoreboard sortedScores={sortedScores} playerId={playerId} frozenPlayerIds={frozenPlayerIds} lengths={new Map((gameState?.players ?? []).map((player) => [player.id, player.alive ? player.snake.length : 0]))} />
       </div>
       <footer className="game-footer">
-        <span><kbd>WASD</kbd> / 方向键移动 <span className="desktop-hint">· <kbd>F</kbd> 全屏</span><span className="mobile-hint">· 拖动地图使用摇杆</span>{!isDead && pendingDirs.length > 0 && <span className="turn-queue-hint"> · 待转向 {pendingDirs.map((dir) => DIR_LABEL[dir]).join(' ')}</span>}{threat && <span className="threat-hint" role="status"> · {threat.kind === 'head-on' ? '对面要相撞' : threat.kind === 'snake' ? '下一格有蛇' : threat.distance === 2 ? '两格后是墙' : '下一格是墙'}</span>}</span>
+        <span><kbd>WASD</kbd> / 方向键移动 <span className="desktop-hint">· <kbd>F</kbd> 全屏</span><span className="mobile-hint">· 拖动地图使用摇杆</span>{!isDead && pendingDirs.length > 0 && <span className="turn-queue-hint"> · 待转向 {pendingDirs.map((dir) => DIR_LABEL[dir]).join(' ')}</span>}{threat && <span className="threat-hint" role="status"> · {threat.kind === 'head-on' ? '对面要相撞' : threat.kind === 'snake' ? '下一格有蛇' : threat.distance === 2 ? '两格后是墙' : '下一格是墙'}</span>}{!isDead && runwayHint && <span className="runway-hint" role="status"> · {runwayHint}</span>}</span>
         <span>食物 +10 <span className="desktop-hint">· 击杀 +100</span></span>
       </footer>
     </main>

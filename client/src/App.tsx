@@ -51,8 +51,11 @@ export default function App() {
   ), [game.deaths, game.gameState?.players, game.isDead, game.playerId, game.sortedScores]);
   const [watchingName, setWatchingName] = useState<string | null>(null);
   const onWatching = useCallback((name: string | null) => setWatchingName(name), []);
+  const [runwayHint, setRunwayHint] = useState<string | null>(null);
+  const onRunwayHint = useCallback((hint: string | null) => setRunwayHint(hint), []);
   useEffect(() => {
     if (!game.isDead) setWatchingName(null);
+    else setRunwayHint(null);
   }, [game.isDead]);
 
   const handleJoin = (event: FormEvent) => {
@@ -64,8 +67,8 @@ export default function App() {
   return (
     <div className="app-shell">
       {!game.joined ? <JoinScreen name={name} busy={game.connectionStatus === 'connecting' || game.connectionStatus === 'reconnecting'} error={game.connectionError} presence={lobbyLive} personalBest={personalBest} onNameChange={setName} onJoin={handleJoin} /> : (
-        <GameHud deaths={game.deaths} isDead={game.isDead} life={life} soundOn={soundOn} onToggleSound={() => setSoundOn((value) => { const next = !value; writeSoundEnabled(next); return next; })} joystickActive={controls.active} joystickSize={JOYSTICK_SIZE} joystickVisualRef={controls.visualRef} onJoystickReady={controls.syncVisual} playerId={game.playerId} score={game.myScore} personalBest={personalBest} pendingDirs={game.pendingDirs} gameState={game.gameState} gridSize={game.gridSize} sortedScores={game.sortedScores} frozenPlayerIds={game.frozenPlayerIds} latencyMs={game.latencyMs} onRespawn={game.respawn} onLeave={game.leave} onRetry={game.retry} onDirectionChange={game.sendDirection} connectionStatus={game.connectionStatus} connectionError={game.connectionError} respawning={game.respawning} watchingLabel={watchingCopy(watchingName)}>
-          <GameCanvas gameState={game.gameState} playerId={game.playerId} gridSize={game.gridSize} pendingDirs={game.pendingDirs} isDead={game.isDead} spectator={spectator} onWatching={onWatching} />
+        <GameHud deaths={game.deaths} isDead={game.isDead} life={life} soundOn={soundOn} onToggleSound={() => setSoundOn((value) => { const next = !value; writeSoundEnabled(next); return next; })} joystickActive={controls.active} joystickSize={JOYSTICK_SIZE} joystickVisualRef={controls.visualRef} onJoystickReady={controls.syncVisual} playerId={game.playerId} score={game.myScore} personalBest={personalBest} pendingDirs={game.pendingDirs} gameState={game.gameState} gridSize={game.gridSize} sortedScores={game.sortedScores} frozenPlayerIds={game.frozenPlayerIds} latencyMs={game.latencyMs} onRespawn={game.respawn} onLeave={game.leave} onRetry={game.retry} onDirectionChange={game.sendDirection} connectionStatus={game.connectionStatus} connectionError={game.connectionError} respawning={game.respawning} watchingLabel={watchingCopy(watchingName)} runwayHint={runwayHint}>
+          <GameCanvas gameState={game.gameState} playerId={game.playerId} gridSize={game.gridSize} pendingDirs={game.pendingDirs} isDead={game.isDead} spectator={spectator} onWatching={onWatching} onRunwayHint={onRunwayHint} />
         </GameHud>
       )}
     </div>

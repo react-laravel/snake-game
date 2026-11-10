@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { immediateThreat } from '../game/lookahead';
 import { longestAliveId } from '../game/longest';
+import { rememberSpawnHint, runwayHintCopy, shouldShowSpawnRunway, snakeBlockKeys, spawnRunway } from '../game/runway';
 import { cameraFollowId, cameraPanDuration, cameraPanProgress, easeCameraPan, startCameraPan } from '../game/spectator';
 import { getViewport, renderGame, type RenderCache } from '../game/renderGame';
 import type { Dir, GameState, GridSize } from '../types/game';
@@ -13,13 +14,14 @@ interface GameCanvasProps {
   isDead?: boolean;
   spectator?: { id: string; name: string } | null;
   onWatching?: (name: string | null) => void;
+  onRunwayHint?: (hint: string | null) => void;
 }
 
 function prefersReducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-export function GameCanvas({ gameState, playerId, gridSize, pendingDirs, isDead = false, spectator = null, onWatching }: GameCanvasProps) {
+export function GameCanvas({ gameState, playerId, gridSize, pendingDirs, isDead = false, spectator = null, onWatching, onRunwayHint }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<number | null>(null);
   const cacheRef = useRef<RenderCache>({ background: null, backgroundKey: '', head: null });
@@ -28,11 +30,15 @@ export function GameCanvas({ gameState, playerId, gridSize, pendingDirs, isDead 
   const motionRef = useRef({ blend: 1, start: 0, tickMs: 150, seq: -1 });
   const watchingRef = useRef<string | null>(null);
   const onWatchingRef = useRef(onWatching);
+  const onRunwayHintRef = useRef(onRunwayHint);
+  const spawnHintRef = useRef<{ alive: boolean; startedAt: number | null }>({ alive: false, startedAt: null });
+  const runwayHintRef = useRef<string | null>(null);
   const panRef = useRef<{ followId: string | null; from: { x: number; y: number } | null; start: number; duration: number }>({
     followId: null, from: null, start: 0, duration: 0,
   });
   dataRef.current = { gameState, playerId, gridSize, pendingDirs, isDead, spectator };
   onWatchingRef.current = onWatching;
+  onRunwayHintRef.current = onRunwayHint;
 
   const draw = useCallback(() => {
     frameRef.current = null;
@@ -83,8 +89,22 @@ export function GameCanvas({ gameState, playerId, gridSize, pendingDirs, isDead 
     const activePan = panRef.current;
     const panProgress = easeCameraPan(cameraPanProgress(performance.now() - activePan.start, activePan.duration, !activePan.from));
     if (activePan.from && panProgress >= 1) activePan.from = null;
-    renderGame({ context, ...size, cache: cacheRef.current, gameState: data.gameState, playerId: data.playerId, gridSize: data.gridSize, pendingDirs: data.pendingDirs, motionBlend, threat, longestId, followId, panFrom: activePan.from, panProgress });
-    if (!document.hidden && ((!reducedMotion && motion.blend < 1) || Boolean(panRef.current.from))) {
+    const self = data.gameState?.players.find((player) => player.id === data.playerId);
+    const selfAlive = Boolean(self?.alive);
+    const now = performance.now();
+    const startedAt = rememberSpawnHint(spawnHintRef.current.alive, selfAlive, now, spawnHintRef.current.startedAt);
+    spawnHintRef.current = { alive: selfAlive, startedAt };
+    const showRunway = shouldShowSpawnRunway({ alive: selfAlive, startedAt, nowMs: now });
+    const runway = showRunway && self
+      ? spawnRunway(self.snake[0], self.dir, data.gridSize, snakeBlockKeys(data.gameState?.players ?? []))
+      : [];
+    const runwayHint = runwayHintCopy(runway.length);
+    if (runwayHintRef.current !== runwayHint) {
+      runwayHintRef.current = runwayHint;
+      onRunwayHintRef.current?.(runwayHint);
+    }
+    renderGame({ context, ...size, cache: cacheRef.current, gameState: data.gameState, playerId: data.playerId, gridSize: data.gridSize, pendingDirs: data.pendingDirs, motionBlend, threat, longestId, followId, panFrom: activePan.from, panProgress, runway });
+    if (!document.hidden && ((!reducedMotion && motion.blend < 1) || Boolean(panRef.current.from) || showRunway)) {
       frameRef.current = requestAnimationFrame(draw);
     }
   }, []);
@@ -103,7 +123,14 @@ export function GameCanvas({ gameState, playerId, gridSize, pendingDirs, isDead 
   }, [gameState, playerId, gridSize, pendingDirs, isDead, spectator, scheduleDraw]);
 
   useEffect(() => {
-    if (isDead) return;
+    if (isDead) {
+      spawnHintRef.current = { alive: false, startedAt: null };
+      if (runwayHintRef.current !== null) {
+        runwayHintRef.current = null;
+        onRunwayHintRef.current?.(null);
+      }
+      return;
+    }
     panRef.current = { followId: null, from: null, start: 0, duration: 0 };
     if (watchingRef.current === null) return;
     watchingRef.current = null;

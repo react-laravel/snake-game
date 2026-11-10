@@ -3,7 +3,7 @@ import type { Dir, GameState, GridSize, SnakeSegment } from '../types/game';
 interface Viewport { cell: number; x: number; y: number; columns: number; rows: number; offsetX: number; offsetY: number; cropped: boolean; }
 export interface SnakeTrack { previous: SnakeSegment[] | null; current: SnakeSegment[]; }
 export interface RenderCache { background: HTMLCanvasElement | null; backgroundKey: string; head: SnakeSegment | null; tracks?: Map<string, SnakeTrack>; }
-interface RenderGameOptions { context: CanvasRenderingContext2D; width: number; height: number; dpr: number; cache: RenderCache; gameState: GameState | null; playerId: string | null; gridSize: GridSize; motionBlend?: number; pendingDirs?: Dir[]; threat?: { x: number; y: number; mark?: { x: number; y: number } | null } | null; longestId?: string | null; followId?: string | null; panFrom?: { x: number; y: number } | null; panProgress?: number; }
+interface RenderGameOptions { context: CanvasRenderingContext2D; width: number; height: number; dpr: number; cache: RenderCache; gameState: GameState | null; playerId: string | null; gridSize: GridSize; motionBlend?: number; pendingDirs?: Dir[]; threat?: { x: number; y: number; mark?: { x: number; y: number } | null } | null; longestId?: string | null; followId?: string | null; panFrom?: { x: number; y: number } | null; panProgress?: number; runway?: Array<{ x: number; y: number }> | null; }
 
 const MOTION_BACKTRACK: Record<Dir, [number, number]> = { up: [0, 1], down: [0, -1], left: [1, 0], right: [-1, 0] };
 
@@ -240,7 +240,7 @@ function drawEdgeFades(context: CanvasRenderingContext2D, grid: GridSize, view: 
 
 const QUEUE_GLYPH: Record<Dir, string> = { up: '↑', down: '↓', left: '←', right: '→' };
 
-export function renderGame({ context, width, height, dpr, cache, gameState, playerId, gridSize, motionBlend = 1, pendingDirs = [], threat = null, longestId = null, followId = null, panFrom = null, panProgress = 1 }: RenderGameOptions) {
+export function renderGame({ context, width, height, dpr, cache, gameState, playerId, gridSize, motionBlend = 1, pendingDirs = [], threat = null, longestId = null, followId = null, panFrom = null, panProgress = 1, runway = null }: RenderGameOptions) {
   const currentPlayer = gameState?.players.find((player) => player.id === playerId);
   const posed = gameState ? poseSnakes(cache, gameState.players, motionBlend) : new Map<string, SnakeSegment[]>();
   const followPlayer = followId ? gameState?.players.find((player) => player.id === followId && player.alive && player.snake.length > 0) : undefined;
@@ -283,6 +283,31 @@ export function renderGame({ context, width, height, dpr, cache, gameState, play
     context.beginPath();
     context.arc(offsetX + (fx + 0.5) * cell, offsetY + (fy + 0.5) * cell, Math.max(4, cell * 0.42), 0, Math.PI * 2);
     context.stroke();
+  }
+  if (runway && runway.length) {
+    const visible = runway.filter((cell) => cell.x >= x && cell.x < x + columns && cell.y >= y && cell.y < y + rows);
+    if (visible.length) {
+      context.save();
+      context.strokeStyle = '#8d8d8d';
+      context.fillStyle = '#9a9a9a';
+      context.lineWidth = 1.25;
+      context.setLineDash([4, 5]);
+      context.beginPath();
+      for (let i = 0; i < visible.length; i++) {
+        const cx = offsetX + (visible[i].x - x + 0.5) * cell;
+        const cy = offsetY + (visible[i].y - y + 0.5) * cell;
+        if (i === 0) context.moveTo(cx, cy);
+        else context.lineTo(cx, cy);
+      }
+      context.stroke();
+      context.setLineDash([]);
+      for (const spot of visible) {
+        context.beginPath();
+        context.arc(offsetX + (spot.x - x + 0.5) * cell, offsetY + (spot.y - y + 0.5) * cell, Math.max(1.5, cell * 0.08), 0, Math.PI * 2);
+        context.fill();
+      }
+      context.restore();
+    }
   }
   for (const player of gameState.players) {
     if (!player.alive || !player.snake.length) continue;
