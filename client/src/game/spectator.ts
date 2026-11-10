@@ -90,3 +90,52 @@ export function cameraFollowId(isDead: boolean, cropped: boolean, spectatorId: s
 export function watchingCopy(name: string | null | undefined): string | null {
   return name ? `正在观看 ${name}` : null;
 }
+
+export const CAMERA_PAN_MS = 420;
+
+/** Smoothstep so the death camera eases into a new follow target instead of jumping. */
+export function easeCameraPan(progress: number): number {
+  const t = Math.min(1, Math.max(0, progress));
+  return t * t * (3 - 2 * t);
+}
+
+export function cameraPanProgress(elapsedMs: number, durationMs = CAMERA_PAN_MS, snap = false): number {
+  if (snap || durationMs <= 0) return 1;
+  return Math.min(1, Math.max(0, elapsedMs / durationMs));
+}
+
+export function mixCameraHead(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  progress: number,
+): { x: number; y: number } {
+  const t = easeCameraPan(progress);
+  return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+}
+
+/** Nearby targets ease over quickly; long glances are capped so the pan stays brief. */
+export function cameraPanDuration(from: { x: number; y: number } | null, to: { x: number; y: number } | null): number {
+  if (!from || !to) return CAMERA_PAN_MS;
+  return Math.min(560, Math.max(280, Math.round(Math.hypot(to.x - from.x, to.y - from.y) * 36)));
+}
+
+/**
+ * Start a pan when the death follow target changes and a previous camera point exists.
+ * Respawn, a full-board view, and reduced motion snap immediately.
+ */
+export function startCameraPan(input: {
+  isDead: boolean;
+  reducedMotion: boolean;
+  previousFollowId: string | null;
+  nextFollowId: string | null;
+  lastCamera: { x: number; y: number } | null;
+}): { panFrom: { x: number; y: number } | null; snap: boolean } {
+  if (!input.isDead || input.reducedMotion || !input.nextFollowId) {
+    return { panFrom: null, snap: true };
+  }
+  if (input.previousFollowId === input.nextFollowId) {
+    return { panFrom: null, snap: false };
+  }
+  if (!input.lastCamera) return { panFrom: null, snap: true };
+  return { panFrom: input.lastCamera, snap: false };
+}

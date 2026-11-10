@@ -19,6 +19,12 @@ const {
   pickDeathSpectator,
   cameraFollowId,
   watchingCopy,
+  easeCameraPan,
+  cameraPanProgress,
+  mixCameraHead,
+  cameraPanDuration,
+  startCameraPan,
+  CAMERA_PAN_MS,
 } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 
 const players = [
@@ -118,3 +124,54 @@ test('watching copy names the followed snake', () => {
   assert.equal(watchingCopy('红蛇'), '正在观看 红蛇');
   assert.equal(watchingCopy(null), null);
 });
+
+test('camera pan eases from the last point and snaps when asked', () => {
+  assert.equal(easeCameraPan(-1), 0);
+  assert.equal(easeCameraPan(0), 0);
+  assert.equal(easeCameraPan(1), 1);
+  assert.equal(easeCameraPan(2), 1);
+  assert.equal(easeCameraPan(0.5), 0.5);
+  assert.equal(easeCameraPan(0.25), 0.15625);
+  assert.equal(cameraPanProgress(0, 400), 0);
+  assert.equal(cameraPanProgress(200, 400), 0.5);
+  assert.equal(cameraPanProgress(400, 400), 1);
+  assert.equal(cameraPanProgress(800, 400), 1);
+  assert.equal(cameraPanProgress(0, 400, true), 1);
+  assert.equal(cameraPanProgress(50, 0), 1);
+  assert.deepEqual(mixCameraHead({ x: 0, y: 0 }, { x: 10, y: 4 }, 0), { x: 0, y: 0 });
+  assert.deepEqual(mixCameraHead({ x: 0, y: 0 }, { x: 10, y: 4 }, 1), { x: 10, y: 4 });
+  assert.deepEqual(mixCameraHead({ x: 0, y: 0 }, { x: 10, y: 0 }, 0.5), { x: 5, y: 0 });
+});
+
+test('pan duration stays brief and scales with distance', () => {
+  assert.equal(cameraPanDuration(null, { x: 10, y: 10 }), CAMERA_PAN_MS);
+  assert.equal(cameraPanDuration({ x: 0, y: 0 }, { x: 0, y: 0 }), 280);
+  assert.equal(cameraPanDuration({ x: 0, y: 0 }, { x: 10, y: 0 }), 360);
+  assert.equal(cameraPanDuration({ x: 0, y: 0 }, { x: 100, y: 0 }), 560);
+});
+
+test('a new death follow target pans from the last camera, and respawn snaps', () => {
+  const last = { x: 4, y: 8 };
+  assert.deepEqual(startCameraPan({
+    isDead: true, reducedMotion: false, previousFollowId: null, nextFollowId: 'killer', lastCamera: last,
+  }), { panFrom: last, snap: false });
+  assert.deepEqual(startCameraPan({
+    isDead: true, reducedMotion: false, previousFollowId: 'killer', nextFollowId: 'long', lastCamera: last,
+  }), { panFrom: last, snap: false });
+  assert.deepEqual(startCameraPan({
+    isDead: true, reducedMotion: false, previousFollowId: 'killer', nextFollowId: 'killer', lastCamera: last,
+  }), { panFrom: null, snap: false });
+  assert.deepEqual(startCameraPan({
+    isDead: false, reducedMotion: false, previousFollowId: 'killer', nextFollowId: null, lastCamera: last,
+  }), { panFrom: null, snap: true });
+  assert.deepEqual(startCameraPan({
+    isDead: true, reducedMotion: true, previousFollowId: null, nextFollowId: 'killer', lastCamera: last,
+  }), { panFrom: null, snap: true });
+  assert.deepEqual(startCameraPan({
+    isDead: true, reducedMotion: false, previousFollowId: null, nextFollowId: 'killer', lastCamera: null,
+  }), { panFrom: null, snap: true });
+  assert.deepEqual(startCameraPan({
+    isDead: true, reducedMotion: false, previousFollowId: 'killer', nextFollowId: null, lastCamera: last,
+  }), { panFrom: null, snap: true });
+});
+

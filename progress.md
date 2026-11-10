@@ -99,3 +99,10 @@ Original prompt: 改进代码，提取组件化
 - `youDied` has no killer id, so the helper can also match a living killer by name. The overlay shows a grayscale 「正在观看 XXX」 banner; respawn snaps the camera back to self.
 - Pure helpers live in `client/src/game/spectator.ts` with Node unit tests wired into `pnpm test`.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`. No protocol or scoring/collision changes.
+
+## 2026-11-10 spectator camera pan
+
+- The cropped death camera eases from the last viewpoint to a new follow target instead of jumping, including the first cut after death and an automatic switch when that snake dies.
+- Respawn and `prefers-reduced-motion` still snap immediately back to self. Pan duration scales with distance and stays brief.
+- Pure helpers (`startCameraPan`, `mixCameraHead`, `cameraPanDuration`) live in `client/src/game/spectator.ts` with added Node unit tests.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`. No protocol or scoring/collision changes.

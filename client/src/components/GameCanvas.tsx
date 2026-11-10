@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { immediateThreat } from '../game/lookahead';
 import { longestAliveId } from '../game/longest';
-import { cameraFollowId } from '../game/spectator';
+import { cameraFollowId, cameraPanDuration, cameraPanProgress, easeCameraPan, startCameraPan } from '../game/spectator';
 import { getViewport, renderGame, type RenderCache } from '../game/renderGame';
 import type { Dir, GameState, GridSize } from '../types/game';
 
@@ -28,6 +28,9 @@ export function GameCanvas({ gameState, playerId, gridSize, pendingDirs, isDead 
   const motionRef = useRef({ blend: 1, start: 0, tickMs: 150, seq: -1 });
   const watchingRef = useRef<string | null>(null);
   const onWatchingRef = useRef(onWatching);
+  const panRef = useRef<{ followId: string | null; from: { x: number; y: number } | null; start: number; duration: number }>({
+    followId: null, from: null, start: 0, duration: 0,
+  });
   dataRef.current = { gameState, playerId, gridSize, pendingDirs, isDead, spectator };
   onWatchingRef.current = onWatching;
 
@@ -54,8 +57,34 @@ export function GameCanvas({ gameState, playerId, gridSize, pendingDirs, isDead 
       watchingRef.current = watchingName;
       onWatchingRef.current?.(watchingName);
     }
-    renderGame({ context, ...size, cache: cacheRef.current, gameState: data.gameState, playerId: data.playerId, gridSize: data.gridSize, pendingDirs: data.pendingDirs, motionBlend, threat, longestId, followId });
-    if (!prefersReducedMotion() && motion.blend < 1 && !document.hidden) {
+    const reducedMotion = prefersReducedMotion();
+    const pan = panRef.current;
+    const plan = startCameraPan({
+      isDead: data.isDead,
+      reducedMotion,
+      previousFollowId: pan.followId,
+      nextFollowId: followId,
+      lastCamera: cacheRef.current.head,
+    });
+    if (plan.snap) {
+      panRef.current = { followId, from: null, start: 0, duration: 0 };
+    } else if (plan.panFrom) {
+      const follow = followId ? data.gameState?.players.find((player) => player.id === followId && player.alive && player.snake.length > 0) : undefined;
+      const target = follow?.snake[0] ?? null;
+      panRef.current = {
+        followId,
+        from: plan.panFrom,
+        start: performance.now(),
+        duration: cameraPanDuration(plan.panFrom, target),
+      };
+    } else {
+      pan.followId = followId;
+    }
+    const activePan = panRef.current;
+    const panProgress = easeCameraPan(cameraPanProgress(performance.now() - activePan.start, activePan.duration, !activePan.from));
+    if (activePan.from && panProgress >= 1) activePan.from = null;
+    renderGame({ context, ...size, cache: cacheRef.current, gameState: data.gameState, playerId: data.playerId, gridSize: data.gridSize, pendingDirs: data.pendingDirs, motionBlend, threat, longestId, followId, panFrom: activePan.from, panProgress });
+    if (!document.hidden && ((!reducedMotion && motion.blend < 1) || Boolean(panRef.current.from))) {
       frameRef.current = requestAnimationFrame(draw);
     }
   }, []);
@@ -75,6 +104,7 @@ export function GameCanvas({ gameState, playerId, gridSize, pendingDirs, isDead 
 
   useEffect(() => {
     if (isDead) return;
+    panRef.current = { followId: null, from: null, start: 0, duration: 0 };
     if (watchingRef.current === null) return;
     watchingRef.current = null;
     onWatchingRef.current?.(null);
