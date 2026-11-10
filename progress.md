@@ -193,3 +193,9 @@ Original prompt: 改进代码，提取组件化
 - The arena now uses a subtle grayscale checkerboard locked to world cells, so the pattern and grid lines stay put as the camera eases and food sits clearly on a square. The previous flat fill and faint lines made small cells hard to count.
 - Pure helpers live in `client/src/game/boardPattern.ts` with Node unit tests wired into `pnpm test`. No camera math, body, joystick, HUD, protocol, or scoring/collision changes.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 food pellets
+
+- Food is drawn as a slightly larger grayscale pellet with an upper-left highlight, so it stays readable on small cells and against the checkerboard. The nearest pellet remains ringed and a bit bigger; the minimap uses the same sizing rule.
+- Pure helpers live in `client/src/game/foodMark.ts` with Node unit tests wired into `pnpm test`. No camera, body, joystick, board pattern, HUD arrows, protocol, or scoring/collision changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.

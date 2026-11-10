@@ -2,6 +2,7 @@ import type { Dir, GameState, GridSize, SnakeSegment } from '../types/game';
 import { cameraLeadDir, cameraLeadFocus } from './cameraLead';
 import { bodyTaper } from './bodyTaper';
 import { cellFill, visibleBoardCells } from './boardPattern';
+import { foodColors, foodHighlightOffset, foodRadii, minimapFoodRadius } from './foodMark';
 
 interface Viewport { cell: number; x: number; y: number; columns: number; rows: number; offsetX: number; offsetY: number; cropped: boolean; }
 export interface SnakeTrack { previous: SnakeSegment[] | null; current: SnakeSegment[]; }
@@ -214,7 +215,7 @@ function drawMinimap(context: CanvasRenderingContext2D, width: number, height: n
   for (const food of state.foods) {
     const nearest = target?.x === food.x && target.y === food.y;
     context.beginPath();
-    context.arc(left + (food.x + 0.5) * scale, top + (food.y + 0.5) * scale, Math.max(1.2, scale * (nearest ? 0.7 : 0.35)), 0, Math.PI * 2);
+    context.arc(left + (food.x + 0.5) * scale, top + (food.y + 0.5) * scale, minimapFoodRadius(scale, nearest), 0, Math.PI * 2);
     context.fill();
     if (!nearest) continue;
     context.strokeStyle = '#fff';
@@ -297,15 +298,24 @@ export function renderGame({ context, width, height, dpr, cache, gameState, play
     const fx = food.x - x, fy = food.y - y;
     if (fx < 0 || fx >= columns || fy < 0 || fy >= rows) continue;
     const nearest = targetFood?.x === food.x && targetFood.y === food.y;
-    context.fillStyle = nearest ? '#fff' : '#dadada';
+    const mark = foodRadii(cell, nearest);
+    const colors = foodColors(nearest);
+    const cx = offsetX + (fx + 0.5) * cell;
+    const cy = offsetY + (fy + 0.5) * cell;
+    context.fillStyle = colors.body;
     context.beginPath();
-    context.arc(offsetX + (fx + 0.5) * cell, offsetY + (fy + 0.5) * cell, Math.max(2, cell * (nearest ? 0.28 : 0.22)), 0, Math.PI * 2);
+    context.arc(cx, cy, mark.fill, 0, Math.PI * 2);
     context.fill();
-    if (!nearest) continue;
+    const shine = foodHighlightOffset(mark.fill);
+    context.fillStyle = colors.highlight;
+    context.beginPath();
+    context.arc(cx + shine.x, cy + shine.y, mark.highlight, 0, Math.PI * 2);
+    context.fill();
+    if (!mark.ring) continue;
     context.strokeStyle = '#fff';
     context.lineWidth = 1;
     context.beginPath();
-    context.arc(offsetX + (fx + 0.5) * cell, offsetY + (fy + 0.5) * cell, Math.max(4, cell * 0.42), 0, Math.PI * 2);
+    context.arc(cx, cy, mark.ring, 0, Math.PI * 2);
     context.stroke();
   }
   if (runway && runway.length) {
