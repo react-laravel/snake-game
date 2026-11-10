@@ -42,9 +42,10 @@ interface GameHudProps {
   onDirectionChange: (direction: Dir) => void;
   watchingLabel?: string | null;
   runwayHint?: string | null;
+  lateGameCopy?: string | null;
 }
 
-export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound, joystickActive, joystickSize, joystickVisualRef, onJoystickReady, playerId, score, personalBest, pendingDirs, gameState, gridSize, sortedScores, frozenPlayerIds, connectionStatus, connectionError, latencyMs, respawning, onRespawn, onLeave, onRetry, onDirectionChange, watchingLabel = null, runwayHint = null }: GameHudProps) {
+export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound, joystickActive, joystickSize, joystickVisualRef, onJoystickReady, playerId, score, personalBest, pendingDirs, gameState, gridSize, sortedScores, frozenPlayerIds, connectionStatus, connectionError, latencyMs, respawning, onRespawn, onLeave, onRetry, onDirectionChange, watchingLabel = null, runwayHint = null, lateGameCopy = null }: GameHudProps) {
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState('');
   const [inviteLabel, setInviteLabel] = useState('邀请');
@@ -125,6 +126,7 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
           <VirtualJoystick active={joystickActive} size={joystickSize} visualRef={joystickVisualRef} onReady={onJoystickReady} />
           {!isDead && connected && <div className={`direction-pad ${joystickActive ? 'direction-pad-hidden' : ''}`} data-no-joystick aria-label="方向控制">{(['up', 'left', 'down', 'right'] as Dir[]).map((dir) => <button key={dir} className={`direction-${dir}`} onClick={() => onDirectionChange(dir)} aria-label={{ up: '向上', down: '向下', left: '向左', right: '向右' }[dir]}>{ { up: '↑', down: '↓', left: '←', right: '→' }[dir]}</button>)}</div>}
           <DeathFeed deaths={deaths} />
+          {lateGameCopy && <p className="late-game-banner" role="status">{lateGameCopy}</p>}
           {isDead && <DeathOverlay score={score} personalBest={personalBest} life={life} reason={reason} respawning={respawning} disabled={!connected} onRespawn={onRespawn} onLeave={onLeave} watchingLabel={watchingLabel} />}
         </div>
         <Scoreboard sortedScores={sortedScores} playerId={playerId} frozenPlayerIds={frozenPlayerIds} lengths={new Map((gameState?.players ?? []).map((player) => [player.id, player.alive ? player.snake.length : 0]))} />

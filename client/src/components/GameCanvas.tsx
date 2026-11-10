@@ -15,17 +15,18 @@ interface GameCanvasProps {
   spectator?: { id: string; name: string } | null;
   onWatching?: (name: string | null) => void;
   onRunwayHint?: (hint: string | null) => void;
+  showAllNames?: boolean;
 }
 
 function prefersReducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-export function GameCanvas({ gameState, playerId, gridSize, pendingDirs, isDead = false, spectator = null, onWatching, onRunwayHint }: GameCanvasProps) {
+export function GameCanvas({ gameState, playerId, gridSize, pendingDirs, isDead = false, spectator = null, onWatching, onRunwayHint, showAllNames = false }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<number | null>(null);
   const cacheRef = useRef<RenderCache>({ background: null, backgroundKey: '', head: null });
-  const dataRef = useRef({ gameState, playerId, gridSize, pendingDirs, isDead, spectator });
+  const dataRef = useRef({ gameState, playerId, gridSize, pendingDirs, isDead, spectator, showAllNames });
   const sizeRef = useRef({ width: 0, height: 0, dpr: 1 });
   const motionRef = useRef({ blend: 1, start: 0, tickMs: 150, seq: -1 });
   const watchingRef = useRef<string | null>(null);
@@ -36,7 +37,7 @@ export function GameCanvas({ gameState, playerId, gridSize, pendingDirs, isDead 
   const panRef = useRef<{ followId: string | null; from: { x: number; y: number } | null; start: number; duration: number }>({
     followId: null, from: null, start: 0, duration: 0,
   });
-  dataRef.current = { gameState, playerId, gridSize, pendingDirs, isDead, spectator };
+  dataRef.current = { gameState, playerId, gridSize, pendingDirs, isDead, spectator, showAllNames };
   onWatchingRef.current = onWatching;
   onRunwayHintRef.current = onRunwayHint;
 
@@ -103,7 +104,7 @@ export function GameCanvas({ gameState, playerId, gridSize, pendingDirs, isDead 
       runwayHintRef.current = runwayHint;
       onRunwayHintRef.current?.(runwayHint);
     }
-    renderGame({ context, ...size, cache: cacheRef.current, gameState: data.gameState, playerId: data.playerId, gridSize: data.gridSize, pendingDirs: data.pendingDirs, motionBlend, threat, longestId, followId, panFrom: activePan.from, panProgress, runway });
+    renderGame({ context, ...size, cache: cacheRef.current, gameState: data.gameState, playerId: data.playerId, gridSize: data.gridSize, pendingDirs: data.pendingDirs, motionBlend, threat, longestId, followId, panFrom: activePan.from, panProgress, runway, showAllNames: data.showAllNames });
     if (!document.hidden && ((!reducedMotion && motion.blend < 1) || Boolean(panRef.current.from) || showRunway)) {
       frameRef.current = requestAnimationFrame(draw);
     }
@@ -120,7 +121,7 @@ export function GameCanvas({ gameState, playerId, gridSize, pendingDirs, isDead 
       motionRef.current = { blend: prefersReducedMotion() ? 1 : 0, start: performance.now(), tickMs, seq };
     }
     scheduleDraw();
-  }, [gameState, playerId, gridSize, pendingDirs, isDead, spectator, scheduleDraw]);
+  }, [gameState, playerId, gridSize, pendingDirs, isDead, spectator, showAllNames, scheduleDraw]);
 
   useEffect(() => {
     if (isDead) {

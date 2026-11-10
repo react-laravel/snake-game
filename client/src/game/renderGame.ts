@@ -3,7 +3,7 @@ import type { Dir, GameState, GridSize, SnakeSegment } from '../types/game';
 interface Viewport { cell: number; x: number; y: number; columns: number; rows: number; offsetX: number; offsetY: number; cropped: boolean; }
 export interface SnakeTrack { previous: SnakeSegment[] | null; current: SnakeSegment[]; }
 export interface RenderCache { background: HTMLCanvasElement | null; backgroundKey: string; head: SnakeSegment | null; tracks?: Map<string, SnakeTrack>; }
-interface RenderGameOptions { context: CanvasRenderingContext2D; width: number; height: number; dpr: number; cache: RenderCache; gameState: GameState | null; playerId: string | null; gridSize: GridSize; motionBlend?: number; pendingDirs?: Dir[]; threat?: { x: number; y: number; mark?: { x: number; y: number } | null } | null; longestId?: string | null; followId?: string | null; panFrom?: { x: number; y: number } | null; panProgress?: number; runway?: Array<{ x: number; y: number }> | null; }
+interface RenderGameOptions { context: CanvasRenderingContext2D; width: number; height: number; dpr: number; cache: RenderCache; gameState: GameState | null; playerId: string | null; gridSize: GridSize; motionBlend?: number; pendingDirs?: Dir[]; threat?: { x: number; y: number; mark?: { x: number; y: number } | null } | null; longestId?: string | null; followId?: string | null; panFrom?: { x: number; y: number } | null; panProgress?: number; runway?: Array<{ x: number; y: number }> | null; showAllNames?: boolean; }
 
 const MOTION_BACKTRACK: Record<Dir, [number, number]> = { up: [0, 1], down: [0, -1], left: [1, 0], right: [-1, 0] };
 
@@ -142,9 +142,9 @@ export function separateMarkers(primary: SnakeSegment, secondary: SnakeSegment, 
 
 export const NAME_RANGE = 12;
 
-/** Your own name always stays. Other names appear only when their head is close. */
-export function shouldShowSnakeName(self: boolean, selfHead: SnakeSegment | null, otherHead: SnakeSegment) {
-  if (self || !selfHead) return true;
+/** Your own name always stays. Other names appear when close, or when a late game reveals everyone. */
+export function shouldShowSnakeName(self: boolean, selfHead: SnakeSegment | null, otherHead: SnakeSegment, showAll = false) {
+  if (self || !selfHead || showAll) return true;
   return Math.abs(selfHead.x - otherHead.x) + Math.abs(selfHead.y - otherHead.y) <= NAME_RANGE;
 }
 
@@ -240,7 +240,7 @@ function drawEdgeFades(context: CanvasRenderingContext2D, grid: GridSize, view: 
 
 const QUEUE_GLYPH: Record<Dir, string> = { up: '↑', down: '↓', left: '←', right: '→' };
 
-export function renderGame({ context, width, height, dpr, cache, gameState, playerId, gridSize, motionBlend = 1, pendingDirs = [], threat = null, longestId = null, followId = null, panFrom = null, panProgress = 1, runway = null }: RenderGameOptions) {
+export function renderGame({ context, width, height, dpr, cache, gameState, playerId, gridSize, motionBlend = 1, pendingDirs = [], threat = null, longestId = null, followId = null, panFrom = null, panProgress = 1, runway = null, showAllNames = false }: RenderGameOptions) {
   const currentPlayer = gameState?.players.find((player) => player.id === playerId);
   const posed = gameState ? poseSnakes(cache, gameState.players, motionBlend) : new Map<string, SnakeSegment[]>();
   const followPlayer = followId ? gameState?.players.find((player) => player.id === followId && player.alive && player.snake.length > 0) : undefined;
@@ -344,7 +344,7 @@ export function renderGame({ context, width, height, dpr, cache, gameState, play
       context.fillStyle = '#161616';
       for (const [ex, ey] of points) { context.beginPath(); context.arc(headLeft + ex * cell, headTop + ey * cell, Math.max(1.2, cell * 0.08), 0, Math.PI * 2); context.fill(); }
       const selfHead = currentPlayer?.alive ? currentPlayer.snake[0] ?? null : null;
-      if (shouldShowSnakeName(self, selfHead, tip)) {
+      if (shouldShowSnakeName(self, selfHead, tip, showAllNames)) {
         context.fillStyle = self ? '#f0f0f0' : '#b9b9b9';
         context.font = `${self ? '600' : '400'} 11px sans-serif`;
         context.textAlign = 'center';

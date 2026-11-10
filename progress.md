@@ -113,3 +113,10 @@ Original prompt: 改进代码，提取组件化
 - The helper matches the server runway rule: walls and snake bodies stop the lead, food does not. No scoring, collision, or protocol changes.
 - Pure helpers live in `client/src/game/runway.ts` with Node unit tests wired into `pnpm test`.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 late-game readout
+
+- After a match has had at least three living snakes, thinning to three or fewer shows a grayscale banner such as 「残局 · 还剩 2 人」 or 「全场只剩你」. A two-person lobby is not treated as a finale.
+- During that late game, every living snake's name stays visible, not only nearby ones.
+- Pure helpers live in `client/src/game/lateGame.ts` with Node unit tests wired into `pnpm test`. No scoring, collision, or protocol changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.

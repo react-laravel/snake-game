@@ -63,6 +63,7 @@ test('nearby snakes keep their names and distant ones do not', () => {
   assert.equal(shouldShowSnakeName(false, null, { x: 40, y: 40 }), true);
   assert.equal(shouldShowSnakeName(false, { x: 0, y: 0 }, { x: NAME_RANGE, y: 0 }), true);
   assert.equal(shouldShowSnakeName(false, { x: 0, y: 0 }, { x: NAME_RANGE + 1, y: 0 }), false);
+  assert.equal(shouldShowSnakeName(false, { x: 0, y: 0 }, { x: NAME_RANGE + 1, y: 0 }, true), true);
 });
 
 test('the nearest opponent is the closest living head, and overlapping arrows split apart', () => {

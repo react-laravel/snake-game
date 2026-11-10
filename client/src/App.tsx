@@ -10,6 +10,7 @@ import { useGameControls } from './hooks/useGameControls';
 import { useGameDebugState } from './hooks/useGameDebugState';
 import { useLifeStats } from './hooks/useLifeStats';
 import { useLobbyPresence } from './hooks/useLobbyPresence';
+import { lateGameStatus, livingPlayers, rememberPeakLiving, shouldRevealAllNames } from './game/lateGame';
 import { pickDeathSpectator, playersForSpectator, spectatorKiller, watchingCopy } from './game/spectator';
 
 function savedName() {
@@ -53,6 +54,22 @@ export default function App() {
   const onWatching = useCallback((name: string | null) => setWatchingName(name), []);
   const [runwayHint, setRunwayHint] = useState<string | null>(null);
   const onRunwayHint = useCallback((hint: string | null) => setRunwayHint(hint), []);
+  const [peakLiving, setPeakLiving] = useState(0);
+  const living = useMemo(() => livingPlayers(game.gameState?.players ?? []), [game.gameState?.players]);
+  useEffect(() => {
+    if (!game.joined) {
+      setPeakLiving(0);
+      return;
+    }
+    setPeakLiving((peak) => rememberPeakLiving(peak, living.length));
+  }, [game.joined, living.length]);
+  const lateGame = lateGameStatus({
+    livingCount: living.length,
+    peakLiving,
+    selfAlive: !game.isDead && Boolean(living.some((player) => player.id === game.playerId)),
+    soleName: living.length === 1 ? living[0].name : null,
+  });
+  const showAllNames = shouldRevealAllNames(lateGame.kind);
   useEffect(() => {
     if (!game.isDead) setWatchingName(null);
     else setRunwayHint(null);
@@ -67,8 +84,8 @@ export default function App() {
   return (
     <div className="app-shell">
       {!game.joined ? <JoinScreen name={name} busy={game.connectionStatus === 'connecting' || game.connectionStatus === 'reconnecting'} error={game.connectionError} presence={lobbyLive} personalBest={personalBest} onNameChange={setName} onJoin={handleJoin} /> : (
-        <GameHud deaths={game.deaths} isDead={game.isDead} life={life} soundOn={soundOn} onToggleSound={() => setSoundOn((value) => { const next = !value; writeSoundEnabled(next); return next; })} joystickActive={controls.active} joystickSize={JOYSTICK_SIZE} joystickVisualRef={controls.visualRef} onJoystickReady={controls.syncVisual} playerId={game.playerId} score={game.myScore} personalBest={personalBest} pendingDirs={game.pendingDirs} gameState={game.gameState} gridSize={game.gridSize} sortedScores={game.sortedScores} frozenPlayerIds={game.frozenPlayerIds} latencyMs={game.latencyMs} onRespawn={game.respawn} onLeave={game.leave} onRetry={game.retry} onDirectionChange={game.sendDirection} connectionStatus={game.connectionStatus} connectionError={game.connectionError} respawning={game.respawning} watchingLabel={watchingCopy(watchingName)} runwayHint={runwayHint}>
-          <GameCanvas gameState={game.gameState} playerId={game.playerId} gridSize={game.gridSize} pendingDirs={game.pendingDirs} isDead={game.isDead} spectator={spectator} onWatching={onWatching} onRunwayHint={onRunwayHint} />
+        <GameHud deaths={game.deaths} isDead={game.isDead} life={life} soundOn={soundOn} onToggleSound={() => setSoundOn((value) => { const next = !value; writeSoundEnabled(next); return next; })} joystickActive={controls.active} joystickSize={JOYSTICK_SIZE} joystickVisualRef={controls.visualRef} onJoystickReady={controls.syncVisual} playerId={game.playerId} score={game.myScore} personalBest={personalBest} pendingDirs={game.pendingDirs} gameState={game.gameState} gridSize={game.gridSize} sortedScores={game.sortedScores} frozenPlayerIds={game.frozenPlayerIds} latencyMs={game.latencyMs} onRespawn={game.respawn} onLeave={game.leave} onRetry={game.retry} onDirectionChange={game.sendDirection} connectionStatus={game.connectionStatus} connectionError={game.connectionError} respawning={game.respawning} watchingLabel={watchingCopy(watchingName)} runwayHint={runwayHint} lateGameCopy={lateGame.copy}>
+          <GameCanvas gameState={game.gameState} playerId={game.playerId} gridSize={game.gridSize} pendingDirs={game.pendingDirs} isDead={game.isDead} spectator={spectator} onWatching={onWatching} onRunwayHint={onRunwayHint} showAllNames={showAllNames} />
         </GameHud>
       )}
     </div>
