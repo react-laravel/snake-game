@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { deathReason } from '../game/deathCopy';
 import { isLeading, leadCopy, leadingLabel, tookTheLead, LEAD_NOTICE_MS } from '../game/lead';
+import { headingNotice, nextHeadingStart, HEADING_MS, type HeadingStart } from '../game/heading';
 import { inviteUrl } from '../game/invite';
 import { immediateThreat } from '../game/lookahead';
 import type { LifeCounters } from '../game/lifeStats';
@@ -51,7 +52,12 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
   const [fullscreenError, setFullscreenError] = useState('');
   const [inviteLabel, setInviteLabel] = useState('邀请');
   const [leadNotice, setLeadNotice] = useState<string | null>(null);
+  const [heading, setHeading] = useState<string | null>(null);
   const fullscreenTimerRef = useRef<number | null>(null);
+  const headingTimerRef = useRef<number | null>(null);
+  const headingRef = useRef<{ hasSeenSelf: boolean; wasAlive: boolean; start: HeadingStart | null }>({
+    hasSeenSelf: false, wasAlive: false, start: null,
+  });
   const previousRankRef = useRef<number | null>(null);
   const leadTimerRef = useRef<number | null>(null);
   const connected = connectionStatus === 'connected';
@@ -136,6 +142,51 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
     if (leadTimerRef.current !== null) window.clearTimeout(leadTimerRef.current);
   }, []);
 
+  useEffect(() => {
+    if (isDead) {
+      headingRef.current = { hasSeenSelf: headingRef.current.hasSeenSelf || Boolean(playerId), wasAlive: false, start: null };
+      setHeading(null);
+      if (headingTimerRef.current !== null) {
+        window.clearTimeout(headingTimerRef.current);
+        headingTimerRef.current = null;
+      }
+      return;
+    }
+    if (!playerId) return;
+    const me = gameState?.players.find((player) => player.id === playerId);
+    if (!me) return;
+    const previousStart = headingRef.current.start;
+    const next = nextHeadingStart({
+      hasSeenSelf: headingRef.current.hasSeenSelf,
+      wasAlive: headingRef.current.wasAlive,
+      alive: Boolean(me.alive),
+      dir: me.dir,
+      start: headingRef.current.start,
+      nowMs: Date.now(),
+    });
+    headingRef.current = { hasSeenSelf: next.hasSeenSelf, wasAlive: Boolean(me.alive), start: next.start };
+    const copy = headingNotice(next.start, Date.now());
+    setHeading(copy);
+    const startChanged = previousStart?.startedAt !== next.start?.startedAt || previousStart?.dir !== next.start?.dir;
+    if (startChanged) {
+      if (headingTimerRef.current !== null) {
+        window.clearTimeout(headingTimerRef.current);
+        headingTimerRef.current = null;
+      }
+      if (copy && next.start) {
+        const remaining = HEADING_MS - (Date.now() - next.start.startedAt);
+        headingTimerRef.current = window.setTimeout(() => {
+          headingTimerRef.current = null;
+          setHeading(null);
+        }, Math.max(0, remaining));
+      }
+    }
+  }, [gameState, isDead, playerId]);
+
+  useEffect(() => () => {
+    if (headingTimerRef.current !== null) window.clearTimeout(headingTimerRef.current);
+  }, []);
+
   return (
     <main className="game-layout">
       <header className="game-topbar" data-no-joystick>
@@ -146,6 +197,7 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
       </header>
       {(connectionError || !connected || fullscreenError) && <div className="connection-banner" role="status" data-no-joystick><span>{connectionError || fullscreenError || '正在恢复连接，请稍候…'}</span>{connectionStatus === 'error' && <button className="text-button" onClick={onRetry}>重新连接</button>}</div>}
       {leadNotice && <div className="lead-banner" role="status">{leadNotice}</div>}
+      {heading && <div className="heading-banner" role="status">{heading}</div>}
       <div className="game-stage">
         <div className="arena" data-game-surface>
           {children}

@@ -147,3 +147,10 @@ Original prompt: 改进代码，提取组件化
 - Finished lives are banked so totals survive respawns; a current life is included if you leave while still alive. Empty sessions are omitted.
 - Pure helpers live in `client/src/game/sessionRecap.ts` with Node unit tests wired into `pnpm test`. No protocol or scoring changes.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 spawn heading
+
+- Joining or respawning now shows a brief grayscale notice such as 「向右出发 · 现在就能转向」, so the opening heading is obvious without freezing movement or inventing a countdown.
+- The spawn direction is kept even if the player turns; a missing snapshot during reconnect does not count as a respawn. The window is independent of the spawn-runway hint.
+- Pure helpers live in `client/src/game/heading.ts` with Node unit tests wired into `pnpm test`. No scoring, collision, or protocol changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
