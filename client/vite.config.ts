@@ -15,6 +15,8 @@ export default defineConfig({
         ws: true,
         changeOrigin: true,
       },
+      '/snake/status': { target: 'http://localhost:3333', changeOrigin: true },
+      '/health': { target: 'http://localhost:3333', changeOrigin: true },
     },
   },
 });

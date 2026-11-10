@@ -101,4 +101,8 @@ export type ServerMessage =
       type: 'error';
       code: string;
       message?: string;
+    }
+  | {
+      type: 'pong';
+      t: number;
     };

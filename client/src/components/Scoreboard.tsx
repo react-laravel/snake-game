@@ -1,14 +1,23 @@
 import { memo, useState } from 'react';
+import { longestAliveId } from '../game/longest';
 import type { ScoreEntry } from '../types/game';
 
 interface ScoreboardProps {
   sortedScores: Array<[string, ScoreEntry]>;
   playerId: string | null;
+  frozenPlayerIds: Set<string>;
+  lengths: Map<string, number>;
 }
 
-export const Scoreboard = memo(function Scoreboard({ sortedScores, playerId }: ScoreboardProps) {
+function playerStatus(id: string, entry: ScoreEntry, frozenPlayerIds: Set<string>, length: number) {
+  const state = !entry.alive ? '已出局' : frozenPlayerIds.has(id) ? '断线中' : '对局中';
+  return length > 0 ? `${state} · ${length} 节` : state;
+}
+
+export const Scoreboard = memo(function Scoreboard({ sortedScores, playerId, frozenPlayerIds, lengths }: ScoreboardProps) {
   const [expanded, setExpanded] = useState(false);
   const aliveCount = sortedScores.filter(([, entry]) => entry.alive).length;
+  const longestId = longestAliveId(sortedScores.map(([id, entry]) => ({ id, alive: entry.alive, length: lengths.get(id) ?? 0 })));
 
   return (
     <aside className={`scoreboard ${expanded ? 'scoreboard-expanded' : ''}`} data-no-joystick aria-label="排行榜">
@@ -18,9 +27,9 @@ export const Scoreboard = memo(function Scoreboard({ sortedScores, playerId }: S
         <div className="scoreboard-columns"><span>玩家</span><span>积分</span></div>
         {sortedScores.length === 0 && <p className="scoreboard-empty">等待玩家加入…</p>}
         {sortedScores.map(([id, entry], index) => (
-          <div key={id} className={`score-row ${id === playerId ? 'score-row-self' : ''}`}>
+          <div key={id} className={`score-row ${id === playerId ? 'score-row-self' : ''} ${id === longestId ? 'score-row-long' : ''}`}>
             <span className="score-rank">{String(index + 1).padStart(2, '0')}</span>
-            <span className="score-identity"><span className="score-name" title={entry.name}><span className="score-name-text">{entry.name}</span>{id === playerId && <small>你</small>}</span><span className="score-player-status">{entry.alive ? '对局中' : '已出局'}</span></span>
+            <span className="score-identity"><span className="score-name" title={entry.name}><span className="score-name-text">{entry.name}</span>{id === playerId && <small>你</small>}{id === longestId && <small>最长</small>}</span><span className="score-player-status">{playerStatus(id, entry, frozenPlayerIds, lengths.get(id) ?? 0)}</span></span>
             <span className={`score-points ${!entry.alive ? 'score-faded' : ''}`}>{entry.score}</span>
           </div>
         ))}

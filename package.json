@@ -10,6 +10,7 @@
     "build": "npm --prefix client run build",
     "start": "npm --prefix server run start",
     "package:runtime": "node scripts/package-runtime.mjs",
-    "deploy:b": "bash scripts/deploy-to-b.sh"
+    "deploy:b": "bash scripts/deploy-to-b.sh",
+    "benchmark:load": "NODE_PATH=server/node_modules node scripts/load-benchmark.mjs"
   }
 }

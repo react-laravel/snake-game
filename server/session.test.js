@@ -178,6 +178,7 @@ test('idle snapshots keep the connection alive without advancing game simulation
   assert.equal(heartbeat.seq, initial.seq);
   assert.deepEqual(heartbeat.players, []);
   assert.deepEqual(heartbeat.foods, initial.foods);
+  await disconnect(client);
 });
 
 test('disconnect freezes the snake until the session is resumed', async t => {
@@ -187,6 +188,7 @@ test('disconnect freezes the snake until the session is resumed', async t => {
   const initial = await first.next('welcome');
   const before = structuredClone(server.game.players.get(initial.playerId).snake[0]);
   await disconnect(first);
+  await waitFor(() => server.game.players.get(initial.playerId)?.frozen === true, 'disconnect should freeze the snake');
   const parked = server.game.players.get(initial.playerId);
   assert.equal(parked.frozen, true);
   server.game.tick();
@@ -235,4 +237,13 @@ test('intentional leave removes the snake immediately and invalidates its token'
   assert.equal(server.game.players.has(initial.playerId), false);
   second.send({ type: 'rejoin', token: initial.reconnectToken });
   assert.equal((await second.next('error')).code, 'invalid_token');
+});
+
+test('spectators can ping before joining', async t => {
+  const server = await start(t);
+  const spectator = await server.connect();
+  await spectator.next('gameState');
+  spectator.send({ type: 'ping', t: 1234 });
+  const pong = await spectator.next('pong');
+  assert.equal(pong.t, 1234);
 });

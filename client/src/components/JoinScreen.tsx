@@ -1,22 +1,44 @@
-import { useEffect, useRef, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { inviteUrl } from '../game/invite';
+import type { ArenaPresence } from '../hooks/useLobbyPresence';
 
 interface JoinScreenProps {
   name: string;
   busy: boolean;
   error: string | null;
+  presence: ArenaPresence;
+  personalBest: number;
   onNameChange: (value: string) => void;
   onJoin: (event: FormEvent) => void;
 }
 
-export function JoinScreen({ name, busy, error, onNameChange, onJoin }: JoinScreenProps) {
+function presenceCaption(presence: ArenaPresence) {
+  if (!presence.linked) return '正在连接竞技场…';
+  if (presence.total === 0) return '场地空闲，等你加入';
+  return `${presence.total} 人在场 · ${presence.alive} 存活`;
+}
+
+export function JoinScreen({ name, busy, error, presence, personalBest, onNameChange, onJoin }: JoinScreenProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [copyLabel, setCopyLabel] = useState('复制邀请链接');
   useEffect(() => {
     if (window.matchMedia('(pointer: fine)').matches) inputRef.current?.focus();
   }, []);
 
+  const copyInvite = async () => {
+    const href = inviteUrl(window.location.origin, window.location.pathname);
+    try {
+      await navigator.clipboard.writeText(href);
+      setCopyLabel('已复制');
+    } catch {
+      setCopyLabel('无法复制');
+    }
+    window.setTimeout(() => setCopyLabel('复制邀请链接'), 2000);
+  };
+
   return (
     <main className="join-screen">
-      <div className="lobby-header"><span className="brand-mark" aria-hidden="true">S</span><span>SNAKE / ARENA</span><span className="lobby-tag">多人在线对战</span></div>
+      <div className="lobby-header"><span className="brand-mark" aria-hidden="true">S</span><span>SNAKE / ARENA</span><span className="lobby-tag" role="status">{presenceCaption(presence)}</span></div>
       <section className="join-card" aria-labelledby="join-title">
         <div className="join-copy">
           <span className="eyebrow">经典玩法 · 一起开局</span>
@@ -30,7 +52,7 @@ export function JoinScreen({ name, busy, error, onNameChange, onJoin }: JoinScre
             </div>
             {error && <p id="join-error" className="inline-error" role="alert">{error}</p>}
           </form>
-          <p id="join-hint" className="join-hint">无需注册，输入昵称即可开始</p>
+          <p id="join-hint" className="join-hint">无需注册，输入昵称即可开始{personalBest > 0 && <> · 个人最高 <strong className="join-best">{personalBest}</strong></>}</p>
         </div>
         <div className="arena-preview" aria-hidden="true">
           <div className="preview-heading"><span>THE ARENA</span><span>60 × 40</span></div>
@@ -43,7 +65,7 @@ export function JoinScreen({ name, busy, error, onNameChange, onJoin }: JoinScre
             <circle cx="300" cy="84" r="6" fill="#eee" /><circle cx="60" cy="60" r="5" fill="#777" /><circle cx="276" cy="228" r="5" fill="#aaa" />
             <path d="M252 252 H204 V204 H156" stroke="#555" strokeWidth="12" fill="none" strokeLinejoin="round" strokeDasharray="10 3" />
           </svg>
-          <div className="preview-caption"><span className="status-dot" /> 下一场，等你加入</div>
+          <div className="preview-caption" role="status"><span className={`status-dot ${presence.linked ? '' : 'status-dot-offline'}`} />{presenceCaption(presence)}</div>
         </div>
       </section>
       <div className="lobby-rules">
@@ -51,7 +73,13 @@ export function JoinScreen({ name, busy, error, onNameChange, onJoin }: JoinScre
         <div><span className="rule-number">02</span><div><strong>活着就有分</strong><p>食物 +10 · 存活每秒 +1 · 击杀 +100</p></div></div>
         <div><span className="rule-number">03</span><div><strong>再来一局</strong><p>避开墙壁与蛇身 · 出局后可保留积分复活</p></div></div>
       </div>
-      <footer className="lobby-footer">简单上手，认真较量。<span>GOOD LUCK & HAVE FUN</span></footer>
+      <footer className="lobby-footer">
+        <span>简单上手，认真较量。</span>
+        <div className="lobby-footer-actions">
+          <button type="button" className="secondary-button lobby-copy" onClick={() => void copyInvite()}>{copyLabel}</button>
+          <span>GOOD LUCK & HAVE FUN</span>
+        </div>
+      </footer>
     </main>
   );
 }

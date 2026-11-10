@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "test": "node --test src/hooks/connectionUtils.test.mjs src/game/renderGame.test.mjs",
+    "test": "node --test src/hooks/connectionUtils.test.mjs src/game/renderGame.test.mjs src/game/personalBest.test.mjs src/game/directionQueue.test.mjs src/game/lifeStats.test.mjs src/game/lookahead.test.mjs src/game/invite.test.mjs src/game/longest.test.mjs",
     "test:browser": "node src/hooks/useGameConnection.browser.test.mjs",
     "preview": "vite preview"
   },

@@ -25,6 +25,8 @@ test('valid welcome keeps dead reconnection state and game frames preserve queue
   assert.deepEqual(parseServerMessage(frame(gameState)), gameState);
   const error = { type: 'error', code: 'invalid_token', message: 'expired' };
   assert.deepEqual(parseServerMessage(frame(error)), error);
+  assert.deepEqual(parseServerMessage(frame({ type: 'pong', t: 12345 })), { type: 'pong', t: 12345 });
+  assert.equal(parseServerMessage(frame({ type: 'pong', t: 'slow' })), null);
 });
 
 test('malformed frames cannot replace valid board state', () => {

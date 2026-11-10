@@ -42,3 +42,52 @@ Original prompt: 改进代码，提取组件化
 - Independent two-client WebSocket protocol probe also passed snapshot equality, death routing, +100 scoring, respawn, leave, illegal/reverse directions and two-turn queue bounds.
 - Collision positions were seeded only in the temporary test world to exercise reproducible interactions. Current user preview remained untouched. WAN latency, cross-device access and large-player load were not tested.
 - Delivery cleanup: stop tracking the generated client/dist/index.html while retaining the local build; dist assets are already ignored and deployment regenerates the entire bundle from source.
+
+## 2026-11-09 motion blend pass
+
+- Added tick-aligned snake motion blending between authoritative `gameState` snapshots (`getSnakeMotionShift` + `GameCanvas` rAF while blend &lt; 1).
+- Frozen snakes skip the offset so disconnect pause does not wiggle on screen; `prefers-reduced-motion` keeps discrete steps.
+- Client regression: motion shift unit test; validate with `pnpm test` and `pnpm run build` in `client/`.
+- Optional next: many-player load benchmark.
+- Lobby `useLobbyPresence` shows live player counts via spectator WebSocket; in-game ping/pong every 5s drives top-bar latency (warn above 200ms).
+
+## 2026-11-09 engagement pass
+
+- Smooth cropped-map camera via `getCameraHead` (aligned with tick motion blend).
+- Local personal best (`snake_best_score`), lobby hint, death overlay record callout, score badge bump on gains.
+- Death overlay `Enter` respawn hotkey.
+
+## 2026-11-09 ops & lobby pass
+
+- `scripts/load-benchmark.mjs` + root `pnpm benchmark:load` for join latency, snapshot rate, ping p50/p95.
+- `GET /snake/status` arena metrics for monitoring.
+- Lobby footer copies invite URL to clipboard.
+
+## 2026-11-09 clarity pass
+
+- Client turn queue mirrors server limits (`directionQueue`) with HUD/canvas `↑←` hints.
+- Scoreboard marks disconnected snakes as 断线中; kill toasts emphasize scoring kills.
+- Score badge shows chase-to-record copy; Vite proxies `/snake/status` and `/health` in dev.
+
+## 2026-11-09 life feedback
+
+- Per-life food and kill counts from length growth and scoring death events; shown on the death card.
+- Optional sine cues (eat / kill / death), off by default, toggled from the top bar and stored in `snake_sound`.
+
+## 2026-11-09 lookahead
+
+- `immediateThreat` warns when the next cell, including a queued turn, is a wall or a body that will not vacate.
+- Footer copy plus a cell outline. A moving tail is ignored, matching the server rule that the tail leaves this tick.
+- A clear next cell still warns when the following cell is a wall. The score badge shows live rank.
+
+## 2026-11-09 food pointer
+
+- On a cropped view, the nearest off-screen food gets an edge arrow and its Manhattan distance. Food already on screen is left unmarked.
+- The nearest food is also ringed wherever it is visible. Scoreboard rows include each living snake's length.
+- Snake bodies render as one rounded stroke. Names stay on you and on opponents within 12 cells; a dead player still sees every name.
+- The minimap rings the nearest food. The score badge shows your length, and M toggles sound.
+- Food arrows slide clear of the minimap. Both the lobby and the match can copy the same invite link.
+- A wall two cells ahead outlines the last in-bounds cell, so the warning stays on screen.
+- The scoreboard marks the longest living snake. Equal lengths keep the higher-ranked player. Its head is also ringed on the board and boxed on the minimap.
+- Head-on warning when another moving snake will enter your next cell, or when two heads will swap. Their queued turns stay unknown; a frozen snake does not count.
+- A cropped view points at the nearest living opponent with a hollow arrow and Manhattan distance. It stays clear of the food arrow and the minimap.

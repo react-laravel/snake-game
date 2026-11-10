@@ -7,7 +7,7 @@ export function DeathFeed({ deaths }: { deaths: DeathEvent[] }) {
       {deaths.map((event) => {
         const copy = deathCopy(event);
         return (
-          <div key={event.id} className="death-toast">
+          <div key={event.id} className={`death-toast${event.scoringKill ? ' death-toast-kill' : ''}`}>
             <span aria-hidden="true">× </span><b>{event.victimName}</b>
             {copy.kind === 'kill' && <> 被 <b>{copy.name}</b> 击杀</>}
             {copy.kind === 'head-on' && ' 正面相撞'}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_GRID_SIZE } from '../game/constants';
+import { canQueueDirection, consumeAppliedTurn } from '../game/directionQueue';
 import type { ConnectionStatus, DeathEvent, Dir, GameState, GridSize } from '../types/game';
 import { MAX_RECONNECT_ATTEMPTS, parseServerMessage, readStored, reconnectDelay, reuseScores, shouldForgetStoredSession, writeStored } from './connectionUtils';
 
@@ -7,6 +8,7 @@ const HANDSHAKE_TIMEOUT_MS = 8000;
 const SILENCE_TIMEOUT_MS = 15000;
 const RESPAWN_TIMEOUT_MS = 6000;
 const DEATH_TOAST_MS = 8000;
+const PING_INTERVAL_MS = 5000;
 const SESSION_MOVED_REASON = 'Session resumed elsewhere';
 
 function storedName() {
@@ -38,6 +40,7 @@ export function useGameConnection() {
   const handshakeTimerRef = useRef<number | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const respawnTimerRef = useRef<number | null>(null);
+  const pingTimerRef = useRef<number | null>(null);
   const reconnectAttemptRef = useRef(0);
   const tokenRef = useRef<string | null>(null);
   const nameRef = useRef('匿名蛇');
@@ -47,6 +50,8 @@ export function useGameConnection() {
   const deadRef = useRef(false);
   const hadSessionRef = useRef(false);
   const respawningRef = useRef(false);
+  const pendingDirsRef = useRef<Dir[]>([]);
+  const lastKnownDirRef = useRef<Dir | undefined>(undefined);
   const startSocketRef = useRef<(reconnecting: boolean) => void>(() => {});
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
@@ -57,6 +62,22 @@ export function useGameConnection() {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle');
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [respawning, setRespawning] = useState(false);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [pendingDirs, setPendingDirs] = useState<Dir[]>([]);
+
+  const resetPendingDirs = useCallback(() => {
+    pendingDirsRef.current = [];
+    setPendingDirs([]);
+  }, []);
+
+  const resetMovementState = useCallback(() => {
+    resetPendingDirs();
+    lastKnownDirRef.current = undefined;
+  }, [resetPendingDirs]);
+
+  const syncPendingDirs = useCallback(() => {
+    setPendingDirs([...pendingDirsRef.current]);
+  }, []);
 
   const finishRespawn = useCallback(() => {
     clearTimer(respawnTimerRef);
@@ -64,8 +85,30 @@ export function useGameConnection() {
     setRespawning(false);
   }, []);
 
+  const stopPing = useCallback(() => {
+    clearTimer(pingTimerRef);
+    setLatencyMs(null);
+  }, []);
+
+  const startPing = useCallback(() => {
+    clearTimer(pingTimerRef);
+    const tick = () => {
+      const socket = socketRef.current;
+      if (socket?.readyState === WebSocket.OPEN) {
+        try {
+          socket.send(JSON.stringify({ type: 'ping', t: Date.now() }));
+        } catch {
+          failureRef.current?.('连接已中断，正在尝试重新连接。');
+        }
+      }
+      pingTimerRef.current = window.setTimeout(tick, PING_INTERVAL_MS);
+    };
+    tick();
+  }, []);
+
   const detachSocket = useCallback((code = 1000, reason = '') => {
     clearTimer(handshakeTimerRef);
+    stopPing();
     const socket = socketRef.current;
     socketRef.current = null;
     authenticatedSocketRef.current = false;
@@ -76,7 +119,7 @@ export function useGameConnection() {
     socket.onclose = null;
     socket.onerror = null;
     socket.close(code, reason);
-  }, []);
+  }, [stopPing]);
 
   const returnToLobby = useCallback((message: string) => {
     desiredConnectionRef.current = false;
@@ -100,7 +143,8 @@ export function useGameConnection() {
     setDeaths([]);
     setConnectionStatus('idle');
     setConnectionError(message);
-  }, [detachSocket, finishRespawn]);
+    resetMovementState();
+  }, [detachSocket, finishRespawn, resetMovementState]);
 
   const addDeath = useCallback((death: Omit<DeathEvent, 'id'>) => {
     const item = { ...death, id: createDeathId(death.victim) };
@@ -221,12 +265,15 @@ export function useGameConnection() {
         playerIdRef.current = message.playerId;
         hadSessionRef.current = true;
         deadRef.current = message.alive === false;
+        resetPendingDirs();
+        lastKnownDirRef.current = message.dir;
         setPlayerId(message.playerId);
         setGridSize({ w: message.gridWidth, h: message.gridHeight });
         setJoined(true);
         setIsDead(deadRef.current);
         setConnectionStatus('connected');
         setConnectionError(null);
+        startPing();
         writeStored('snake_playerId', message.playerId);
         writeStored('snake_name', nameRef.current);
         if (message.reconnectToken) {
@@ -237,6 +284,11 @@ export function useGameConnection() {
       }
 
       if (waitingForWelcome) return;
+
+      if (message.type === 'pong') {
+        setLatencyMs(Math.max(0, Date.now() - message.t));
+        return;
+      }
 
       if (message.type === 'gameState') {
         const state: GameState = {
@@ -254,11 +306,21 @@ export function useGameConnection() {
             nameRef.current = me.name;
             writeStored('snake_name', me.name);
           }
+          if (me.dir) {
+            const nextPending = consumeAppliedTurn(pendingDirsRef.current, lastKnownDirRef.current, me.dir);
+            if (nextPending.length !== pendingDirsRef.current.length) {
+              pendingDirsRef.current = nextPending;
+              syncPendingDirs();
+            }
+            lastKnownDirRef.current = me.dir;
+          }
           if (deadRef.current && me.alive) {
             setConnectionError(null);
+            resetPendingDirs();
           }
           deadRef.current = !me.alive;
           setIsDead(!me.alive);
+          if (!me.alive) resetPendingDirs();
           if (me.alive && respawningRef.current) finishRespawn();
         }
         return;
@@ -289,7 +351,7 @@ export function useGameConnection() {
       }
       handleFailure('连接已中断，正在尝试重新连接。');
     };
-  }, [addDeath, detachSocket, finishRespawn, returnToLobby]);
+  }, [addDeath, detachSocket, finishRespawn, returnToLobby, startPing]);
 
   useEffect(() => {
     startSocketRef.current = startSocket;
@@ -344,7 +406,8 @@ export function useGameConnection() {
     setDeaths([]);
     setConnectionStatus('idle');
     setConnectionError(null);
-  }, [detachSocket, finishRespawn]);
+    resetMovementState();
+  }, [detachSocket, finishRespawn, resetMovementState]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -374,12 +437,15 @@ export function useGameConnection() {
     const socket = socketRef.current;
     if (socket?.readyState !== WebSocket.OPEN || !authenticatedSocketRef.current ||
         !playerIdRef.current || deadRef.current) return;
+    if (!canQueueDirection(direction, lastKnownDirRef.current, pendingDirsRef.current)) return;
     try {
       socket.send(JSON.stringify({ type: 'direction', dir: direction }));
+      pendingDirsRef.current = [...pendingDirsRef.current, direction];
+      syncPendingDirs();
     } catch {
       failureRef.current?.('连接已中断，正在尝试重新连接。');
     }
-  }, []);
+  }, [syncPendingDirs]);
 
   const respawn = useCallback(() => {
     const socket = socketRef.current;
@@ -408,6 +474,11 @@ export function useGameConnection() {
   );
   const myScore = playerId ? gameState?.scores[playerId]?.score ?? 0 : 0;
 
-  return { gameState, gameStateRef, playerId, gridSize, joined, deaths, isDead, myScore, sortedScores,
+  const frozenPlayerIds = useMemo(
+    () => new Set(gameState?.players.filter((player) => player.alive && player.frozen).map((player) => player.id)),
+    [gameState?.players],
+  );
+
+  return { gameState, gameStateRef, playerId, gridSize, joined, deaths, isDead, myScore, sortedScores, latencyMs, pendingDirs, frozenPlayerIds,
     connect, respawn, sendDirection, connectionStatus, connectionError, respawning, leave, retry };
 }

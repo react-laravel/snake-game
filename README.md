@@ -65,6 +65,19 @@ cd ../server
 npm test
 ```
 
+## 负载探测（可选）
+
+先启动服务端，再在仓库根目录运行：
+
+```sh
+pnpm benchmark:load
+pnpm benchmark:load -- --players 24 --seconds 30
+```
+
+脚本会模拟多名玩家与旁观连接，汇总加入耗时、`gameState` 间隔分布与应用层 ping RTT。
+
+监控 HTTP：`GET /snake/status` 返回在线人数、`connections`、`seq` 与 `tickMs`（另有 `/health`）。
+
 服务端测试覆盖出生、食物、碰撞、连续转向、积分、重连、旧连接隔离、空闲保活和主动退出。客户端测试覆盖消息解析、重试退避、排行榜复用和禁用存储。
 
 启动 Vite 后可运行 `cd client && pnpm run test:browser`，用 Chromium 验证连接生命周期（需要已安装的 Playwright；可通过 `PLAYWRIGHT_MODULE` 指定现有模块路径）。此测试使用可控 WebSocket 和时钟，不创建真实对局。

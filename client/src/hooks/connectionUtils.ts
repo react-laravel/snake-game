@@ -80,6 +80,9 @@ export function parseServerMessage(data: unknown): ServerMessage | null {
       if (typeof value.code !== 'string' ||
           (value.message !== undefined && typeof value.message !== 'string')) return null;
       break;
+    case 'pong':
+      if (typeof value.t !== 'number' || !Number.isFinite(value.t)) return null;
+      break;
     default:
       return null;
   }

@@ -23,6 +23,18 @@ export function createGameServer({ tickMs = 150, reconnectMs = 30000, idleStateM
   app.use(express.static(clientDist));
   app.use('/snake', express.static(clientDist));
   app.get('/health', (_, res) => res.json({ ok: true }));
+  app.get('/snake/status', (_, res) => {
+    const snapshot = game.state(tickMs);
+    const alive = Object.values(snapshot.scores).filter((entry) => entry.alive).length;
+    res.json({
+      ok: true,
+      players: snapshot.players.length,
+      alive,
+      connections: wss.clients.size,
+      seq: snapshot.seq,
+      tickMs,
+    });
+  });
 
   function send(socket, data, isState = false) {
     if (socket.readyState !== WebSocket.OPEN) return;
@@ -108,6 +120,11 @@ export function createGameServer({ tickMs = 150, reconnectMs = 30000, idleStateM
         return;
       }
       if (!message || typeof message !== 'object' || Array.isArray(message)) return;
+      if (message.type === 'ping') {
+        const t = typeof message.t === 'number' && Number.isFinite(message.t) ? message.t : Date.now();
+        send(socket, JSON.stringify({ type: 'pong', t }));
+        return;
+      }
       const session = currentSession(socket);
 
       if (message.type === 'join') {
