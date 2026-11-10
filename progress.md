@@ -127,3 +127,9 @@ Original prompt: 改进代码，提取组件化
 - Peak length is kept even after the server clears the dead body. The recap freezes at death so the timer does not keep running on the overlay.
 - Pure helpers (`nextLifeCounters`, `lifeRecapCopy`, `formatSurvived`, `scoreboardPlace`) live in `client/src/game/lifeStats.ts` with added Node unit tests.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`. No scoring, collision, or protocol changes.
+
+## 2026-11-10 lobby roster
+
+- The join screen now lists who is already in the arena, with score and alive/out status, taken from the existing spectator `gameState`. Overflow past five names is summarized as 「还有 N 人」.
+- Pure helpers live in `client/src/game/lobby.ts` with Node unit tests wired into `pnpm test`. No protocol or scoring changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.

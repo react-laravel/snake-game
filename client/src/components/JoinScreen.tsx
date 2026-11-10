@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { inviteUrl } from '../game/invite';
+import { lobbyOverflowCopy, lobbyPlayerStatus, lobbyPresenceCopy } from '../game/lobby';
 import type { ArenaPresence } from '../hooks/useLobbyPresence';
 
 interface JoinScreenProps {
@@ -12,18 +13,14 @@ interface JoinScreenProps {
   onJoin: (event: FormEvent) => void;
 }
 
-function presenceCaption(presence: ArenaPresence) {
-  if (!presence.linked) return '正在连接竞技场…';
-  if (presence.total === 0) return '场地空闲，等你加入';
-  return `${presence.total} 人在场 · ${presence.alive} 存活`;
-}
-
 export function JoinScreen({ name, busy, error, presence, personalBest, onNameChange, onJoin }: JoinScreenProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [copyLabel, setCopyLabel] = useState('复制邀请链接');
   useEffect(() => {
     if (window.matchMedia('(pointer: fine)').matches) inputRef.current?.focus();
   }, []);
+
+  const overflow = lobbyOverflowCopy(presence.total, presence.players.length);
 
   const copyInvite = async () => {
     const href = inviteUrl(window.location.origin, window.location.pathname);
@@ -38,7 +35,7 @@ export function JoinScreen({ name, busy, error, presence, personalBest, onNameCh
 
   return (
     <main className="join-screen">
-      <div className="lobby-header"><span className="brand-mark" aria-hidden="true">S</span><span>SNAKE / ARENA</span><span className="lobby-tag" role="status">{presenceCaption(presence)}</span></div>
+      <div className="lobby-header"><span className="brand-mark" aria-hidden="true">S</span><span>SNAKE / ARENA</span><span className="lobby-tag" role="status">{lobbyPresenceCopy(presence)}</span></div>
       <section className="join-card" aria-labelledby="join-title">
         <div className="join-copy">
           <span className="eyebrow">经典玩法 · 一起开局</span>
@@ -65,7 +62,19 @@ export function JoinScreen({ name, busy, error, presence, personalBest, onNameCh
             <circle cx="300" cy="84" r="6" fill="#eee" /><circle cx="60" cy="60" r="5" fill="#777" /><circle cx="276" cy="228" r="5" fill="#aaa" />
             <path d="M252 252 H204 V204 H156" stroke="#555" strokeWidth="12" fill="none" strokeLinejoin="round" strokeDasharray="10 3" />
           </svg>
-          <div className="preview-caption" role="status"><span className={`status-dot ${presence.linked ? '' : 'status-dot-offline'}`} />{presenceCaption(presence)}</div>
+          <div className="preview-caption" role="status"><span className={`status-dot ${presence.linked ? '' : 'status-dot-offline'}`} />{lobbyPresenceCopy(presence)}</div>
+          {presence.linked && presence.players.length > 0 && (
+            <ul className="lobby-roster" aria-label="场上玩家">
+              {presence.players.map((player) => (
+                <li key={player.id} className={player.alive ? undefined : 'lobby-roster-out'}>
+                  <span className="lobby-roster-name">{player.name}</span>
+                  <span className="lobby-roster-score">{player.score}</span>
+                  <span className="lobby-roster-state">{lobbyPlayerStatus(player.alive)}</span>
+                </li>
+              ))}
+              {overflow && <li className="lobby-roster-more">{overflow}</li>}
+            </ul>
+          )}
         </div>
       </section>
       <div className="lobby-rules">

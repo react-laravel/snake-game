@@ -36,6 +36,13 @@ button { transition: background .15s, border-color .15s; }
 .preview-heading { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: .16em; color: #999; }
 .preview-art { display: block; width: 100%; margin: 15px 0; }
 .preview-caption { display: flex; align-items: center; justify-content: center; gap: 8px; color: #999; font-size: 11px; }
+.lobby-roster { list-style: none; margin: 12px 0 0; padding: 10px 0 0; border-top: 1px solid #333; display: flex; flex-direction: column; gap: 6px; }
+.lobby-roster li { display: flex; align-items: baseline; gap: 8px; font-size: 11px; color: #d0d0d0; }
+.lobby-roster-out { color: #8a8a8a; }
+.lobby-roster-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lobby-roster-score { font-variant-numeric: tabular-nums; color: #bdbdbd; }
+.lobby-roster-state { font-size: 10px; color: #8f8f8f; }
+.lobby-roster-more { color: #8a8a8a; justify-content: center; }
 .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 100%; background: #d2d2d2; flex-shrink: 0; }
 .status-dot-offline { background: #777; }
 .lobby-rules { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 30px 0 40px; }

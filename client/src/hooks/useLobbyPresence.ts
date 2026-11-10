@@ -1,18 +1,17 @@
 import { useEffect, useState } from 'react';
+import { lobbyRoster, type LobbyPresence } from '../game/lobby';
 import { parseServerMessage } from './connectionUtils';
 
-export interface ArenaPresence {
-  total: number;
-  alive: number;
-  linked: boolean;
-}
+export type ArenaPresence = LobbyPresence;
+
+const EMPTY: LobbyPresence = { total: 0, alive: 0, linked: false, players: [] };
 
 export function useLobbyPresence(active: boolean) {
-  const [presence, setPresence] = useState<ArenaPresence>({ total: 0, alive: 0, linked: false });
+  const [presence, setPresence] = useState<LobbyPresence>(EMPTY);
 
   useEffect(() => {
     if (!active) {
-      setPresence({ total: 0, alive: 0, linked: false });
+      setPresence(EMPTY);
       return;
     }
     let closed = false;
@@ -35,6 +34,7 @@ export function useLobbyPresence(active: boolean) {
         total: scores.length,
         alive: scores.filter((entry) => entry.alive).length,
         linked: true,
+        players: lobbyRoster(message.scores),
       });
     };
     socket.onclose = () => {
