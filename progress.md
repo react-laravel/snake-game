@@ -92,3 +92,10 @@ Original prompt: 改进代码，提取组件化
 - Head-on warning when another moving snake will enter your next cell, or when two heads will swap. Their queued turns stay unknown; a frozen snake does not count.
 - A cropped view points at the nearest living opponent with a hollow arrow and Manhattan distance. It stays clear of the food arrow and the minimap.
 - Snake motion follows the previous body. A turn no longer slides the tail sideways, and eating only extends the head.
+
+## 2026-11-10 death spectator camera
+
+- After death on a cropped map, the camera follows the killer if they are still alive, otherwise the longest living snake (equal lengths keep the scoreboard leader).
+- `youDied` has no killer id, so the helper can also match a living killer by name. The overlay shows a grayscale 「正在观看 XXX」 banner; respawn snaps the camera back to self.
+- Pure helpers live in `client/src/game/spectator.ts` with Node unit tests wired into `pnpm test`.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`. No protocol or scoring/collision changes.

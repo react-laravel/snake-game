@@ -1,23 +1,35 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { immediateThreat } from '../game/lookahead';
 import { longestAliveId } from '../game/longest';
-import { renderGame, type RenderCache } from '../game/renderGame';
+import { cameraFollowId } from '../game/spectator';
+import { getViewport, renderGame, type RenderCache } from '../game/renderGame';
 import type { Dir, GameState, GridSize } from '../types/game';
 
-interface GameCanvasProps { gameState: GameState | null; playerId: string | null; gridSize: GridSize; pendingDirs: Dir[]; }
+interface GameCanvasProps {
+  gameState: GameState | null;
+  playerId: string | null;
+  gridSize: GridSize;
+  pendingDirs: Dir[];
+  isDead?: boolean;
+  spectator?: { id: string; name: string } | null;
+  onWatching?: (name: string | null) => void;
+}
 
 function prefersReducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-export function GameCanvas({ gameState, playerId, gridSize, pendingDirs }: GameCanvasProps) {
+export function GameCanvas({ gameState, playerId, gridSize, pendingDirs, isDead = false, spectator = null, onWatching }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<number | null>(null);
   const cacheRef = useRef<RenderCache>({ background: null, backgroundKey: '', head: null });
-  const dataRef = useRef({ gameState, playerId, gridSize, pendingDirs });
+  const dataRef = useRef({ gameState, playerId, gridSize, pendingDirs, isDead, spectator });
   const sizeRef = useRef({ width: 0, height: 0, dpr: 1 });
   const motionRef = useRef({ blend: 1, start: 0, tickMs: 150, seq: -1 });
-  dataRef.current = { gameState, playerId, gridSize, pendingDirs };
+  const watchingRef = useRef<string | null>(null);
+  const onWatchingRef = useRef(onWatching);
+  dataRef.current = { gameState, playerId, gridSize, pendingDirs, isDead, spectator };
+  onWatchingRef.current = onWatching;
 
   const draw = useCallback(() => {
     frameRef.current = null;
@@ -34,7 +46,15 @@ export function GameCanvas({ gameState, playerId, gridSize, pendingDirs }: GameC
     const data = dataRef.current;
     const threat = immediateThreat(data.gameState?.players ?? [], data.playerId, data.pendingDirs, data.gridSize);
     const longestId = longestAliveId((data.gameState?.players ?? []).map((player) => ({ id: player.id, alive: player.alive, length: player.snake.length })));
-    renderGame({ context, ...sizeRef.current, cache: cacheRef.current, ...data, motionBlend, threat, longestId });
+    const size = sizeRef.current;
+    const cropped = size.width > 0 && size.height > 0 && getViewport(size.width, size.height, data.gridSize, null).cropped;
+    const followId = cameraFollowId(data.isDead, cropped, data.spectator?.id ?? null);
+    const watchingName = followId ? data.spectator?.name ?? null : null;
+    if (watchingRef.current !== watchingName) {
+      watchingRef.current = watchingName;
+      onWatchingRef.current?.(watchingName);
+    }
+    renderGame({ context, ...size, cache: cacheRef.current, gameState: data.gameState, playerId: data.playerId, gridSize: data.gridSize, pendingDirs: data.pendingDirs, motionBlend, threat, longestId, followId });
     if (!prefersReducedMotion() && motion.blend < 1 && !document.hidden) {
       frameRef.current = requestAnimationFrame(draw);
     }
@@ -51,7 +71,14 @@ export function GameCanvas({ gameState, playerId, gridSize, pendingDirs }: GameC
       motionRef.current = { blend: prefersReducedMotion() ? 1 : 0, start: performance.now(), tickMs, seq };
     }
     scheduleDraw();
-  }, [gameState, playerId, gridSize, pendingDirs, scheduleDraw]);
+  }, [gameState, playerId, gridSize, pendingDirs, isDead, spectator, scheduleDraw]);
+
+  useEffect(() => {
+    if (isDead) return;
+    if (watchingRef.current === null) return;
+    watchingRef.current = null;
+    onWatchingRef.current?.(null);
+  }, [isDead]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

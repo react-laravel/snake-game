@@ -10,9 +10,10 @@ interface DeathOverlayProps {
   respawning: boolean;
   onRespawn: () => void;
   onLeave: () => void;
+  watchingLabel?: string | null;
 }
 
-export function DeathOverlay({ score, personalBest, life, reason, disabled, respawning, onRespawn, onLeave }: DeathOverlayProps) {
+export function DeathOverlay({ score, personalBest, life, reason, disabled, respawning, onRespawn, onLeave, watchingLabel = null }: DeathOverlayProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const cardRef = useRef<HTMLElement>(null);
   const record = personalBest > 0 && score >= personalBest;
@@ -35,6 +36,7 @@ export function DeathOverlay({ score, personalBest, life, reason, disabled, resp
 
   return (
     <div className="death-overlay" data-no-joystick>
+      {watchingLabel && <p className="spectating-banner" role="status">{watchingLabel}</p>}
       <section ref={cardRef} className="death-card" role="dialog" tabIndex={-1} aria-labelledby="death-title" aria-describedby="death-reason">
         <div className="death-icon" aria-hidden="true">×</div><span className="eyebrow">ROUND OVER</span>
         <h2 id="death-title">这次就到这里。</h2><p id="death-reason">{reason}</p>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { readPersonalBest, updatePersonalBest } from './game/personalBest';
 import { playCue, readSoundEnabled, writeSoundEnabled } from './game/sound';
 import { GameCanvas } from './components/GameCanvas';
@@ -10,6 +10,7 @@ import { useGameControls } from './hooks/useGameControls';
 import { useGameDebugState } from './hooks/useGameDebugState';
 import { useLifeStats } from './hooks/useLifeStats';
 import { useLobbyPresence } from './hooks/useLobbyPresence';
+import { pickDeathSpectator, playersForSpectator, spectatorKiller, watchingCopy } from './game/spectator';
 
 function savedName() {
   try { return localStorage.getItem('snake_name') || ''; } catch { return ''; }
@@ -43,6 +44,17 @@ export default function App() {
 
   useGameDebugState({ joined: game.joined, isDead: game.isDead, score: game.myScore, playerId: game.playerId, gridSize: game.gridSize, gameState: game.gameState, connectionStatus: game.connectionStatus });
 
+  const spectator = useMemo(() => pickDeathSpectator(
+    game.isDead,
+    playersForSpectator(game.gameState?.players ?? [], game.sortedScores),
+    { ...spectatorKiller(game.deaths, game.playerId), selfId: game.playerId },
+  ), [game.deaths, game.gameState?.players, game.isDead, game.playerId, game.sortedScores]);
+  const [watchingName, setWatchingName] = useState<string | null>(null);
+  const onWatching = useCallback((name: string | null) => setWatchingName(name), []);
+  useEffect(() => {
+    if (!game.isDead) setWatchingName(null);
+  }, [game.isDead]);
+
   const handleJoin = (event: FormEvent) => {
     event.preventDefault();
     if (!name.trim()) return;
@@ -52,8 +64,8 @@ export default function App() {
   return (
     <div className="app-shell">
       {!game.joined ? <JoinScreen name={name} busy={game.connectionStatus === 'connecting' || game.connectionStatus === 'reconnecting'} error={game.connectionError} presence={lobbyLive} personalBest={personalBest} onNameChange={setName} onJoin={handleJoin} /> : (
-        <GameHud deaths={game.deaths} isDead={game.isDead} life={life} soundOn={soundOn} onToggleSound={() => setSoundOn((value) => { const next = !value; writeSoundEnabled(next); return next; })} joystickActive={controls.active} joystickSize={JOYSTICK_SIZE} joystickVisualRef={controls.visualRef} onJoystickReady={controls.syncVisual} playerId={game.playerId} score={game.myScore} personalBest={personalBest} pendingDirs={game.pendingDirs} gameState={game.gameState} gridSize={game.gridSize} sortedScores={game.sortedScores} frozenPlayerIds={game.frozenPlayerIds} latencyMs={game.latencyMs} onRespawn={game.respawn} onLeave={game.leave} onRetry={game.retry} onDirectionChange={game.sendDirection} connectionStatus={game.connectionStatus} connectionError={game.connectionError} respawning={game.respawning}>
-          <GameCanvas gameState={game.gameState} playerId={game.playerId} gridSize={game.gridSize} pendingDirs={game.pendingDirs} />
+        <GameHud deaths={game.deaths} isDead={game.isDead} life={life} soundOn={soundOn} onToggleSound={() => setSoundOn((value) => { const next = !value; writeSoundEnabled(next); return next; })} joystickActive={controls.active} joystickSize={JOYSTICK_SIZE} joystickVisualRef={controls.visualRef} onJoystickReady={controls.syncVisual} playerId={game.playerId} score={game.myScore} personalBest={personalBest} pendingDirs={game.pendingDirs} gameState={game.gameState} gridSize={game.gridSize} sortedScores={game.sortedScores} frozenPlayerIds={game.frozenPlayerIds} latencyMs={game.latencyMs} onRespawn={game.respawn} onLeave={game.leave} onRetry={game.retry} onDirectionChange={game.sendDirection} connectionStatus={game.connectionStatus} connectionError={game.connectionError} respawning={game.respawning} watchingLabel={watchingCopy(watchingName)}>
+          <GameCanvas gameState={game.gameState} playerId={game.playerId} gridSize={game.gridSize} pendingDirs={game.pendingDirs} isDead={game.isDead} spectator={spectator} onWatching={onWatching} />
         </GameHud>
       )}
     </div>
