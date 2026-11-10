@@ -175,3 +175,9 @@ Original prompt: 改进代码，提取组件化
 - The lead is a fraction of the visible span and keeps a trailing margin, so the head never leaves the view. Full-board layouts are unchanged. No new HUD, toast, or scoreboard label.
 - Pure helpers live in `client/src/game/cameraLead.ts` with Node unit tests wired into `pnpm test`. No protocol or scoring/collision changes.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 body taper
+
+- Snake bodies now taper over the last eight segments, down to half width at the tail, so head and tail stay easy to tell apart in a crowd. The rest of the body keeps full thickness.
+- Pure helper `bodyTaper` lives in `client/src/game/bodyTaper.ts` with Node unit tests wired into `pnpm test`. No camera, HUD, protocol, or scoring/collision changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.

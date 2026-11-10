@@ -3,9 +3,9 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import ts from 'typescript';
 
-const leadSource = await readFile(new URL('./cameraLead.ts', import.meta.url), 'utf8');
+const helperSources = await Promise.all(['./cameraLead.ts', './bodyTaper.ts'].map((path) => readFile(new URL(path, import.meta.url), 'utf8')));
 const renderSource = await readFile(new URL('./renderGame.ts', import.meta.url), 'utf8');
-const source = `${leadSource.replace(/^import type[^\n]*\n/m, '')}\n${renderSource.replace(/^import \{[^}]*\} from '\.\/cameraLead';\s*\n/m, '')}`;
+const source = `${helperSources.map((part) => part.replace(/^import type[^\n]*\n/gm, '')).join('\n')}\n${renderSource.replace(/^import \{[^}]*\} from '\.\/[^']+';\s*\n/gm, '')}`;
 const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext } });
 const { getViewport, getSnakeMotionShift, getCameraHead, interpolateSnake, nearestFood, nearestOpponent, separateMarkers, foodPointer, shouldShowSnakeName, NAME_RANGE, placeClearOf, cameraLeadFocus } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 const grid = { w: 60, h: 40 };

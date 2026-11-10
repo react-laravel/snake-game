@@ -1,5 +1,6 @@
 import type { Dir, GameState, GridSize, SnakeSegment } from '../types/game';
 import { cameraLeadDir, cameraLeadFocus } from './cameraLead';
+import { bodyTaper } from './bodyTaper';
 
 interface Viewport { cell: number; x: number; y: number; columns: number; rows: number; offsetX: number; offsetY: number; cropped: boolean; }
 export interface SnakeTrack { previous: SnakeSegment[] | null; current: SnakeSegment[]; }
@@ -321,24 +322,24 @@ export function renderGame({ context, width, height, dpr, cache, gameState, play
     if (player.frozen) context.globalAlpha = 0.45;
     context.strokeStyle = self ? '#f5f5f5' : player.color;
     context.fillStyle = context.strokeStyle;
-    context.lineWidth = Math.max(4, cell - 3);
+    const maxWidth = Math.max(4, cell - 3);
     context.lineCap = 'round';
     context.lineJoin = 'round';
-    context.beginPath();
-    for (let i = body.length - 1; i >= 0; i--) {
-      const cx = offsetX + (body[i].x - x + 0.5) * cell;
-      const cy = offsetY + (body[i].y - y + 0.5) * cell;
-      if (i === body.length - 1) context.moveTo(cx, cy);
-      else context.lineTo(cx, cy);
-    }
-    context.stroke();
     const tip = body[0];
     const headLeft = offsetX + (tip.x - x) * cell;
     const headTop = offsetY + (tip.y - y) * cell;
     if (body.length === 1) {
       context.beginPath();
-      context.arc(headLeft + cell / 2, headTop + cell / 2, context.lineWidth / 2, 0, Math.PI * 2);
+      context.arc(headLeft + cell / 2, headTop + cell / 2, maxWidth / 2, 0, Math.PI * 2);
       context.fill();
+    } else {
+      for (let i = body.length - 2; i >= 0; i--) {
+        context.lineWidth = bodyTaper(i, body.length, maxWidth);
+        context.beginPath();
+        context.moveTo(offsetX + (body[i + 1].x - x + 0.5) * cell, offsetY + (body[i + 1].y - y + 0.5) * cell);
+        context.lineTo(offsetX + (body[i].x - x + 0.5) * cell, offsetY + (body[i].y - y + 0.5) * cell);
+        context.stroke();
+      }
     }
     const headVisible = tip.x >= x && tip.x < x + columns && tip.y >= y && tip.y < y + rows;
     if (headVisible) {
