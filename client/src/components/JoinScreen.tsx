@@ -9,11 +9,12 @@ interface JoinScreenProps {
   error: string | null;
   presence: ArenaPresence;
   personalBest: number;
+  sessionRecap?: string | null;
   onNameChange: (value: string) => void;
   onJoin: (event: FormEvent) => void;
 }
 
-export function JoinScreen({ name, busy, error, presence, personalBest, onNameChange, onJoin }: JoinScreenProps) {
+export function JoinScreen({ name, busy, error, presence, personalBest, sessionRecap = null, onNameChange, onJoin }: JoinScreenProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [copyLabel, setCopyLabel] = useState('复制邀请链接');
   useEffect(() => {
@@ -50,6 +51,7 @@ export function JoinScreen({ name, busy, error, presence, personalBest, onNameCh
             {error && <p id="join-error" className="inline-error" role="alert">{error}</p>}
           </form>
           <p id="join-hint" className="join-hint">无需注册，输入昵称即可开始{personalBest > 0 && <> · 个人最高 <strong className="join-best">{personalBest}</strong></>}</p>
+          {sessionRecap && <p className="session-recap" role="status">{sessionRecap}</p>}
         </div>
         <div className="arena-preview" aria-hidden="true">
           <div className="preview-heading"><span>THE ARENA</span><span>60 × 40</span></div>

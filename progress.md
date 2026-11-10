@@ -140,3 +140,10 @@ Original prompt: 改进代码，提取组件化
 - The first snapshot is not treated as a takeover, and a solo lobby does not count as leading.
 - Pure helpers live in `client/src/game/lead.ts` with Node unit tests wired into `pnpm test`. No protocol or scoring changes.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 session recap
+
+- Leaving a match now shows a lobby recap of the session just ended: score, duration, lives, peak length, food, kills, and best place.
+- Finished lives are banked so totals survive respawns; a current life is included if you leave while still alive. Empty sessions are omitted.
+- Pure helpers live in `client/src/game/sessionRecap.ts` with Node unit tests wired into `pnpm test`. No protocol or scoring changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.

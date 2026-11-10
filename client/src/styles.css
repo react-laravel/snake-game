@@ -31,6 +31,7 @@ button { transition: background .15s, border-color .15s; }
 .primary-button { min-height: 46px; border: 1px solid #ddd; border-radius: 8px; background: #e3e3e3; color: #202020; font-weight: 650; font-size: 13px; padding: 12px 20px; white-space: nowrap; }
 .primary-button:hover:not(:disabled) { background: #fff; }
 .join-hint { font-size: 11px; color: #929292; margin: 12px 0 0; }
+.session-recap { margin: 14px 0 0; padding: 10px 12px; border: 1px solid #3b3b3b; border-radius: 8px; background: #1d1d1d; color: #d0d0d0; font-size: 12px; line-height: 1.7; }
 .inline-error { color: #e4b7b7; font-size: 12px; line-height: 1.6; margin: 10px 0 0; }
 .arena-preview { border: 1px solid #3b3b3b; border-radius: 12px; background: #202020; padding: 18px; }
 .preview-heading { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: .16em; color: #999; }
