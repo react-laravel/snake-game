@@ -14,6 +14,7 @@ import { DeathOverlay } from './DeathOverlay';
 import { ScoreBadge } from './ScoreBadge';
 import { Scoreboard } from './Scoreboard';
 import { VirtualJoystick } from './VirtualJoystick';
+import { padButtonClass, padButtonKind } from '../game/directionPad';
 
 const DIR_LABEL: Record<Dir, string> = { up: '↑', down: '↓', left: '←', right: '→' };
 
@@ -88,6 +89,7 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
   const rankLabel = place >= 0 ? `第 ${place + 1} / ${sortedScores.length}${leadMark ? ` · ${leadMark}` : ''}${soleMark ? ` · ${soleMark}` : ''}` : '';
   const me = gameState?.players.find((player) => player.id === playerId);
   const lengthLabel = me?.alive ? `${me.snake.length} 节` : '';
+  const currentDir = me?.alive ? me.dir : undefined;
   const toggleSoundRef = useRef(onToggleSound);
   toggleSoundRef.current = onToggleSound;
 
@@ -240,7 +242,7 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
         <div className="arena" data-game-surface>
           {children}
           <VirtualJoystick active={joystickActive} size={joystickSize} visualRef={joystickVisualRef} onReady={onJoystickReady} />
-          {!isDead && connected && <div className={`direction-pad ${joystickActive ? 'direction-pad-hidden' : ''}`} data-no-joystick aria-label="方向控制">{(['up', 'left', 'down', 'right'] as Dir[]).map((dir) => <button key={dir} className={`direction-${dir}`} onClick={() => onDirectionChange(dir)} aria-label={{ up: '向上', down: '向下', left: '向左', right: '向右' }[dir]}>{ { up: '↑', down: '↓', left: '←', right: '→' }[dir]}</button>)}</div>}
+          {!isDead && connected && <div className={`direction-pad ${joystickActive ? 'direction-pad-hidden' : ''}`} data-no-joystick aria-label="方向控制">{(['up', 'left', 'down', 'right'] as Dir[]).map((dir) => { const kind = padButtonKind(dir, currentDir, pendingDirs); return <button key={dir} className={`direction-${dir}${padButtonClass(kind)}`} onClick={() => onDirectionChange(dir)} aria-label={{ up: '向上', down: '向下', left: '向左', right: '向右' }[dir]} aria-pressed={kind !== 'idle'}>{ { up: '↑', down: '↓', left: '←', right: '→' }[dir]}</button>; })}</div>}
           <DeathFeed deaths={deaths} />
           {lateGameCopy && <p className="late-game-banner" role="status">{lateGameCopy}</p>}
           {isDead && <DeathOverlay score={score} personalBest={personalBest} life={life} reason={reason} respawning={respawning} disabled={!connected} onRespawn={onRespawn} onLeave={onLeave} watchingLabel={watchingLabel} />}

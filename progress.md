@@ -211,3 +211,9 @@ Original prompt: 改进代码，提取组件化
 - Snake names now sit on a compact dark plate so they stay readable on the checkerboard and over light bodies. Your own caption is still 「名字 · 你」. Who gets a name, and when, is unchanged.
 - Pure helpers live in `client/src/game/namePlate.ts` with Node unit tests wired into `pnpm test`. No camera, body, joystick, keyboard, food, board, HUD, protocol, or scoring/collision changes.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 direction pad heading
+
+- The on-screen direction pad now highlights the live heading and the first queued turn, so a tap shows which way the snake is already going and what comes next. Other buttons stay unmarked.
+- Pure helpers live in `client/src/game/directionPad.ts` with Node unit tests wired into `pnpm test`. No camera, body, joystick, keyboard, food, board, name plate, toast, protocol, or scoring/collision changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.

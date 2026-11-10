@@ -134,6 +134,8 @@ kbd { font-family: inherit; font-size: 10px; padding: 2px 5px; border: 1px solid
 @media (pointer: coarse) {
   .direction-pad { position: absolute; display: grid; grid-template: repeat(2, 42px) / repeat(3, 42px); gap: 4px; bottom: 16px; left: 16px; }
   .direction-pad button { background: #222222b3; border: 1px solid #ffffff30; border-radius: 7px; color: #ccc; font-size: 19px; touch-action: manipulation; }
+  .direction-pad button.direction-current { background: #4c4c4ccc; border-color: #d0d0d0; color: #f3f3f3; }
+  .direction-pad button.direction-queued { background: #3a3a3acc; border-color: #9a9a9a; color: #e8e8e8; }
   .direction-pad button:active { background: #555; }
   .direction-up { grid-column: 2; } .direction-left { grid-column: 1; grid-row: 2; } .direction-down { grid-column: 2; grid-row: 2; } .direction-right { grid-column: 3; grid-row: 2; }
   .direction-pad-hidden { opacity: 0; pointer-events: none; }
