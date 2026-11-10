@@ -199,3 +199,9 @@ Original prompt: 改进代码，提取组件化
 - Food is drawn as a slightly larger grayscale pellet with an upper-left highlight, so it stays readable on small cells and against the checkerboard. The nearest pellet remains ringed and a bit bigger; the minimap uses the same sizing rule.
 - Pure helpers live in `client/src/game/foodMark.ts` with Node unit tests wired into `pnpm test`. No camera, body, joystick, board pattern, HUD arrows, protocol, or scoring/collision changes.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 keyboard layout
+
+- Keyboard steering now prefers physical WASD positions (`event.code`) and falls back to the letter or arrow `key`, so the same key cluster works on AZERTY and similar layouts. QWERTY behavior is unchanged.
+- Pure helper `keyDirection` lives in `client/src/game/keyDirection.ts` with Node unit tests wired into `pnpm test`. No joystick, camera, protocol, or scoring/collision changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
