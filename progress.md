@@ -187,3 +187,9 @@ Original prompt: 改进代码，提取组件化
 - The touch stick now keeps its current heading around a diagonal until the other axis clearly wins, so a slight wobble no longer flips a queued turn. The existing 25% dead zone is unchanged.
 - Pure helper `joystickDirection` lives in `client/src/game/joystick.ts` with Node unit tests wired into `pnpm test`. No camera, body, HUD, protocol, or scoring/collision changes.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 board pattern
+
+- The arena now uses a subtle grayscale checkerboard locked to world cells, so the pattern and grid lines stay put as the camera eases and food sits clearly on a square. The previous flat fill and faint lines made small cells hard to count.
+- Pure helpers live in `client/src/game/boardPattern.ts` with Node unit tests wired into `pnpm test`. No camera math, body, joystick, HUD, protocol, or scoring/collision changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.

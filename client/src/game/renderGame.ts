@@ -1,6 +1,7 @@
 import type { Dir, GameState, GridSize, SnakeSegment } from '../types/game';
 import { cameraLeadDir, cameraLeadFocus } from './cameraLead';
 import { bodyTaper } from './bodyTaper';
+import { cellFill, visibleBoardCells } from './boardPattern';
 
 interface Viewport { cell: number; x: number; y: number; columns: number; rows: number; offsetX: number; offsetY: number; cropped: boolean; }
 export interface SnakeTrack { previous: SnakeSegment[] | null; current: SnakeSegment[]; }
@@ -167,14 +168,32 @@ function drawBackground(context: CanvasRenderingContext2D, width: number, height
   const { cell, columns, rows, offsetX, offsetY, x, y } = view;
   context.fillStyle = '#202020';
   context.fillRect(0, 0, width, height);
-  context.fillStyle = '#252525';
-  context.fillRect(offsetX, offsetY, columns * cell, rows * cell);
+  context.save();
   context.beginPath();
-  for (let column = 0; column <= columns; column++) { context.moveTo(offsetX + column * cell, offsetY); context.lineTo(offsetX + column * cell, offsetY + rows * cell); }
-  for (let row = 0; row <= rows; row++) { context.moveTo(offsetX, offsetY + row * cell); context.lineTo(offsetX + columns * cell, offsetY + row * cell); }
+  context.rect(offsetX, offsetY, columns * cell, rows * cell);
+  context.clip();
+  const cells = visibleBoardCells(view);
+  for (let cy = cells.startY; cy < cells.endY; cy++) {
+    for (let cx = cells.startX; cx < cells.endX; cx++) {
+      context.fillStyle = cellFill(cx, cy);
+      context.fillRect(offsetX + (cx - x) * cell, offsetY + (cy - y) * cell, cell, cell);
+    }
+  }
+  context.beginPath();
+  for (let cx = cells.startX; cx <= cells.endX; cx++) {
+    const sx = offsetX + (cx - x) * cell;
+    context.moveTo(sx, offsetY);
+    context.lineTo(sx, offsetY + rows * cell);
+  }
+  for (let cy = cells.startY; cy <= cells.endY; cy++) {
+    const sy = offsetY + (cy - y) * cell;
+    context.moveTo(offsetX, sy);
+    context.lineTo(offsetX + columns * cell, sy);
+  }
   context.strokeStyle = '#303030';
   context.lineWidth = 0.5;
   context.stroke();
+  context.restore();
   context.save();
   context.beginPath(); context.rect(offsetX - 2, offsetY - 2, columns * cell + 4, rows * cell + 4); context.clip();
   context.strokeStyle = '#909090'; context.lineWidth = 2;

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import ts from 'typescript';
 
-const helperSources = await Promise.all(['./cameraLead.ts', './bodyTaper.ts'].map((path) => readFile(new URL(path, import.meta.url), 'utf8')));
+const helperSources = await Promise.all(['./cameraLead.ts', './bodyTaper.ts', './boardPattern.ts'].map((path) => readFile(new URL(path, import.meta.url), 'utf8')));
 const renderSource = await readFile(new URL('./renderGame.ts', import.meta.url), 'utf8');
 const source = `${helperSources.map((part) => part.replace(/^import type[^\n]*\n/gm, '')).join('\n')}\n${renderSource.replace(/^import \{[^}]*\} from '\.\/[^']+';\s*\n/gm, '')}`;
 const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext } });
