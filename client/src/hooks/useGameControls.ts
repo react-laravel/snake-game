@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { JoystickVisual } from '../components/VirtualJoystick';
 import type { Dir } from '../types/game';
+import { joystickDirection } from '../game/joystick';
 
 const KEY_DIRECTIONS: Record<string, Dir> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right' };
 interface UseGameControlsOptions { enabled: boolean; joystickSize: number; onDirectionChange: (direction: Dir) => void; }
@@ -48,12 +49,12 @@ export function useGameControls({ enabled, joystickSize, onDirectionChange }: Us
         const origin = originRef.current;
         let dx = touch.clientX - origin.x;
         let dy = touch.clientY - origin.y;
+        const direction = joystickDirection(dx, dy, maxDistance, lastTouchDirection);
         const distance = Math.hypot(dx, dy);
         if (distance > maxDistance) { dx *= maxDistance / distance; dy *= maxDistance / distance; }
         poseRef.current = { dx, dy, baseX: origin.x, baseY: origin.y };
         syncVisual();
-        if (distance <= maxDistance * 0.25) { lastTouchDirection = null; continue; }
-        const direction: Dir = Math.abs(dx) > Math.abs(dy) ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up';
+        if (direction === null) { lastTouchDirection = null; continue; }
         if (direction !== lastTouchDirection) { lastTouchDirection = direction; onDirectionChange(direction); }
       }
     };

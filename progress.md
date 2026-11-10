@@ -181,3 +181,9 @@ Original prompt: 改进代码，提取组件化
 - Snake bodies now taper over the last eight segments, down to half width at the tail, so head and tail stay easy to tell apart in a crowd. The rest of the body keeps full thickness.
 - Pure helper `bodyTaper` lives in `client/src/game/bodyTaper.ts` with Node unit tests wired into `pnpm test`. No camera, HUD, protocol, or scoring/collision changes.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 joystick hysteresis
+
+- The touch stick now keeps its current heading around a diagonal until the other axis clearly wins, so a slight wobble no longer flips a queued turn. The existing 25% dead zone is unchanged.
+- Pure helper `joystickDirection` lives in `client/src/game/joystick.ts` with Node unit tests wired into `pnpm test`. No camera, body, HUD, protocol, or scoring/collision changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
