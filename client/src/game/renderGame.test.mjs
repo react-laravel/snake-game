@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const source = await readFile(new URL('./renderGame.ts', import.meta.url), 'utf8');
 const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext } });
-const { getViewport, getSnakeMotionShift, getCameraHead, nearestFood, nearestOpponent, separateMarkers, foodPointer, shouldShowSnakeName, NAME_RANGE, placeClearOf } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+const { getViewport, getSnakeMotionShift, getCameraHead, interpolateSnake, nearestFood, nearestOpponent, separateMarkers, foodPointer, shouldShowSnakeName, NAME_RANGE, placeClearOf } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 const grid = { w: 60, h: 40 };
 
 test('full-map fit does not lose a column or row to floating point rounding', () => {
@@ -25,6 +25,19 @@ test('camera head tracks between grid cells while snakes ease', () => {
   const midway = getCameraHead({ x: 10, y: 10 }, 'right', 0.5);
   assert.equal(midway.x, 9.5);
   assert.equal(midway.y, 10);
+});
+
+test('a turning snake slides along its own body instead of shearing sideways', () => {
+  const previous = [{ x: 2, y: 1 }, { x: 2, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 0 }];
+  const current = [{ x: 3, y: 1 }, { x: 2, y: 1 }, { x: 2, y: 0 }, { x: 1, y: 0 }];
+  assert.deepEqual(interpolateSnake(previous, current, 0.5), [
+    { x: 2.5, y: 1 }, { x: 2, y: 0.5 }, { x: 1.5, y: 0 }, { x: 0.5, y: 0 },
+  ]);
+  const grown = [{ x: 3, y: 0 }, { x: 2, y: 0 }, { x: 1, y: 0 }];
+  assert.deepEqual(interpolateSnake([{ x: 2, y: 0 }, { x: 1, y: 0 }], grown, 0.5), [
+    { x: 2.5, y: 0 }, { x: 2, y: 0 }, { x: 1, y: 0 },
+  ]);
+  assert.equal(interpolateSnake(previous, current, 1), current);
 });
 
 test('motion shift eases snakes between server ticks along travel direction', () => {

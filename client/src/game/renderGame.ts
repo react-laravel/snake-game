@@ -1,7 +1,8 @@
 import type { Dir, GameState, GridSize, SnakeSegment } from '../types/game';
 
 interface Viewport { cell: number; x: number; y: number; columns: number; rows: number; offsetX: number; offsetY: number; cropped: boolean; }
-export interface RenderCache { background: HTMLCanvasElement | null; backgroundKey: string; head: SnakeSegment | null; }
+export interface SnakeTrack { previous: SnakeSegment[] | null; current: SnakeSegment[]; }
+export interface RenderCache { background: HTMLCanvasElement | null; backgroundKey: string; head: SnakeSegment | null; tracks?: Map<string, SnakeTrack>; }
 interface RenderGameOptions { context: CanvasRenderingContext2D; width: number; height: number; dpr: number; cache: RenderCache; gameState: GameState | null; playerId: string | null; gridSize: GridSize; motionBlend?: number; pendingDirs?: Dir[]; threat?: { x: number; y: number; mark?: { x: number; y: number } | null } | null; longestId?: string | null; }
 
 const MOTION_BACKTRACK: Record<Dir, [number, number]> = { up: [0, 1], down: [0, -1], left: [1, 0], right: [-1, 0] };
@@ -20,6 +21,56 @@ export function getCameraHead(head: SnakeSegment, dir: Dir | undefined, motionBl
   const [ox, oy] = MOTION_BACKTRACK[dir];
   const back = 1 - motionBlend;
   return { x: head.x + ox * back, y: head.y + oy * back };
+}
+
+function sameSegments(a: SnakeSegment[], b: SnakeSegment[]) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i].x !== b[i].x || a[i].y !== b[i].y) return false;
+  return true;
+}
+
+function mix(from: SnakeSegment, to: SnakeSegment, blend: number): SnakeSegment {
+  return { x: from.x + (to.x - from.x) * blend, y: from.y + (to.y - from.y) * blend };
+}
+
+/**
+ * Slide each joint from its previous cell to its current cell.
+ * Eating keeps the old body still and only extends the head.
+ */
+export function interpolateSnake(previous: SnakeSegment[] | null, current: SnakeSegment[], blend: number): SnakeSegment[] {
+  if (!previous || blend >= 1 || previous.length === 0) return current;
+  const grew = current.length === previous.length + 1 && sameSegments(previous, current.slice(1));
+  if (grew) return [mix(current[1], current[0], blend), ...current.slice(1)];
+  if (previous.length !== current.length) return current;
+  return current.map((segment, index) => mix(previous[index], segment, blend));
+}
+
+export function rememberSnake(tracks: Map<string, SnakeTrack>, id: string, snake: SnakeSegment[]): SnakeSegment[] | null {
+  const known = tracks.get(id);
+  const current = snake.map((segment) => ({ x: segment.x, y: segment.y }));
+  if (!known) {
+    tracks.set(id, { previous: null, current });
+    return null;
+  }
+  if (sameSegments(known.current, current)) return known.previous;
+  tracks.set(id, { previous: known.current, current });
+  return known.current;
+}
+
+function poseSnakes(cache: RenderCache, players: GameState['players'], motionBlend: number) {
+  const tracks = cache.tracks ?? new Map<string, SnakeTrack>();
+  cache.tracks = tracks;
+  const seen = new Set<string>();
+  const posed = new Map<string, SnakeSegment[]>();
+  for (const player of players) {
+    if (!player.alive || player.snake.length === 0) continue;
+    seen.add(player.id);
+    const previous = rememberSnake(tracks, player.id, player.snake);
+    const slide = !player.frozen && motionBlend < 1;
+    posed.set(player.id, slide ? interpolateSnake(previous, player.snake, motionBlend) : player.snake);
+  }
+  for (const id of tracks.keys()) if (!seen.has(id)) tracks.delete(id);
+  return posed;
 }
 
 export function getViewport(width: number, height: number, grid: GridSize, head: SnakeSegment | null): Viewport {
@@ -191,12 +242,11 @@ const QUEUE_GLYPH: Record<Dir, string> = { up: '↑', down: '↓', left: '←', 
 
 export function renderGame({ context, width, height, dpr, cache, gameState, playerId, gridSize, motionBlend = 1, pendingDirs = [], threat = null, longestId = null }: RenderGameOptions) {
   const currentPlayer = gameState?.players.find((player) => player.id === playerId);
-  const head = currentPlayer?.snake[0];
-  if (head) cache.head = head;
-  const cameraHead = head && currentPlayer?.dir && motionBlend < 1
-    ? getCameraHead(head, currentPlayer.dir, motionBlend)
-    : head ?? cache.head;
-  const view = getViewport(width, height, gridSize, cameraHead);
+  const posed = gameState ? poseSnakes(cache, gameState.players, motionBlend) : new Map<string, SnakeSegment[]>();
+  const head = currentPlayer ? posed.get(currentPlayer.id)?.[0] ?? currentPlayer.snake[0] : undefined;
+  const cameraHead = head ?? cache.head;
+  if (cameraHead) cache.head = cameraHead;
+  const view = getViewport(width, height, gridSize, cameraHead ?? null);
   const { cell, x, y, columns, rows, offsetX, offsetY } = view;
   const key = `${width}:${height}:${dpr}:${gridSize.w}:${gridSize.h}:${x}:${y}`;
   if (!cache.background) cache.background = document.createElement('canvas');
@@ -232,7 +282,7 @@ export function renderGame({ context, width, height, dpr, cache, gameState, play
   for (const player of gameState.players) {
     if (!player.alive || !player.snake.length) continue;
     const self = player.id === playerId;
-    const shift = player.frozen ? { dx: 0, dy: 0 } : getSnakeMotionShift(player.dir, cell, motionBlend);
+    const body = posed.get(player.id) ?? player.snake;
     context.save();
     if (player.frozen) context.globalAlpha = 0.45;
     context.strokeStyle = self ? '#f5f5f5' : player.color;
@@ -241,39 +291,22 @@ export function renderGame({ context, width, height, dpr, cache, gameState, play
     context.lineCap = 'round';
     context.lineJoin = 'round';
     context.beginPath();
-    let drawing = false;
-    let headLeft = 0;
-    let headTop = 0;
-    let headCellX = 0;
-    for (let i = player.snake.length - 1; i >= 0; i--) {
-      const sx = player.snake[i].x - x, sy = player.snake[i].y - y;
-      const onScreen = sx >= -1 && sx <= columns && sy >= -1 && sy <= rows;
-      const cx = offsetX + (sx + 0.5) * cell + shift.dx;
-      const cy = offsetY + (sy + 0.5) * cell + shift.dy;
-      if (!onScreen) {
-        if (drawing) context.stroke();
-        context.beginPath();
-        drawing = false;
-        continue;
-      }
-      if (!drawing) context.moveTo(cx, cy);
+    for (let i = body.length - 1; i >= 0; i--) {
+      const cx = offsetX + (body[i].x - x + 0.5) * cell;
+      const cy = offsetY + (body[i].y - y + 0.5) * cell;
+      if (i === body.length - 1) context.moveTo(cx, cy);
       else context.lineTo(cx, cy);
-      drawing = true;
-      if (i !== 0) continue;
-      headLeft = offsetX + sx * cell + shift.dx;
-      headTop = offsetY + sy * cell + shift.dy;
-      headCellX = sy;
     }
-    if (drawing) {
-      context.stroke();
-      if (player.snake.length === 1) {
-        context.beginPath();
-        context.arc(headLeft + cell / 2, headTop + cell / 2, context.lineWidth / 2, 0, Math.PI * 2);
-        context.fill();
-      }
+    context.stroke();
+    const tip = body[0];
+    const headLeft = offsetX + (tip.x - x) * cell;
+    const headTop = offsetY + (tip.y - y) * cell;
+    if (body.length === 1) {
+      context.beginPath();
+      context.arc(headLeft + cell / 2, headTop + cell / 2, context.lineWidth / 2, 0, Math.PI * 2);
+      context.fill();
     }
-    const head = player.snake[0];
-    const headVisible = head.x >= x && head.x < x + columns && head.y >= y && head.y < y + rows;
+    const headVisible = tip.x >= x && tip.x < x + columns && tip.y >= y && tip.y < y + rows;
     if (headVisible) {
       if (self || player.id === longestId) { context.strokeStyle = '#fff'; context.lineWidth = 1.5; context.beginPath(); context.arc(headLeft + cell / 2, headTop + cell / 2, Math.max(5, cell * 0.42), 0, Math.PI * 2); context.stroke(); }
       const dir = player.dir ?? 'right';
@@ -281,16 +314,16 @@ export function renderGame({ context, width, height, dpr, cache, gameState, play
       context.fillStyle = '#161616';
       for (const [ex, ey] of points) { context.beginPath(); context.arc(headLeft + ex * cell, headTop + ey * cell, Math.max(1.2, cell * 0.08), 0, Math.PI * 2); context.fill(); }
       const selfHead = currentPlayer?.alive ? currentPlayer.snake[0] ?? null : null;
-      if (shouldShowSnakeName(self, selfHead, head)) {
+      if (shouldShowSnakeName(self, selfHead, tip)) {
         context.fillStyle = self ? '#f0f0f0' : '#b9b9b9';
         context.font = `${self ? '600' : '400'} 11px sans-serif`;
         context.textAlign = 'center';
-        context.fillText(self ? `${player.name} · 你` : player.name, headLeft + cell / 2, headCellX < 1 ? headTop + cell + 13 : headTop - 6, Math.min(120, columns * cell));
+        context.fillText(self ? `${player.name} · 你` : player.name, headLeft + cell / 2, tip.y - y < 1 ? headTop + cell + 13 : headTop - 6, Math.min(120, columns * cell));
       }
       if (self && pendingDirs.length) {
         context.fillStyle = '#eaeaea';
         context.font = `600 ${Math.max(9, cell * 0.34)}px sans-serif`;
-        context.fillText(pendingDirs.map((queued) => QUEUE_GLYPH[queued]).join(' '), headLeft + cell / 2, headCellX < 1 ? headTop - 8 : headTop - 10, cell * 1.4);
+        context.fillText(pendingDirs.map((queued) => QUEUE_GLYPH[queued]).join(' '), headLeft + cell / 2, tip.y - y < 1 ? headTop - 8 : headTop - 10, cell * 1.4);
       }
     }
     context.restore();

@@ -91,3 +91,4 @@ Original prompt: 改进代码，提取组件化
 - The scoreboard marks the longest living snake. Equal lengths keep the higher-ranked player. Its head is also ringed on the board and boxed on the minimap.
 - Head-on warning when another moving snake will enter your next cell, or when two heads will swap. Their queued turns stay unknown; a frozen snake does not count.
 - A cropped view points at the nearest living opponent with a hollow arrow and Manhattan distance. It stays clear of the food arrow and the minimap.
+- Snake motion follows the previous body. A turn no longer slides the tail sideways, and eating only extends the head.
