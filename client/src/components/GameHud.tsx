@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { deathReason } from '../game/deathCopy';
+import { isLeading, leadCopy, leadingLabel, tookTheLead, LEAD_NOTICE_MS } from '../game/lead';
 import { inviteUrl } from '../game/invite';
 import { immediateThreat } from '../game/lookahead';
 import type { LifeCounters } from '../game/lifeStats';
@@ -49,7 +50,10 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState('');
   const [inviteLabel, setInviteLabel] = useState('邀请');
+  const [leadNotice, setLeadNotice] = useState<string | null>(null);
   const fullscreenTimerRef = useRef<number | null>(null);
+  const previousRankRef = useRef<number | null>(null);
+  const leadTimerRef = useRef<number | null>(null);
   const connected = connectionStatus === 'connected';
   const statusText = connected ? '已连接' : connectionStatus === 'error' ? '连接中断' : connectionStatus === 'connecting' ? '正在连接…' : '正在重连…';
   const reasonRef = useRef('碰撞出局，下次留意墙壁与蛇身。');
@@ -59,7 +63,10 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
   const reason = reasonRef.current;
   const threat = !isDead && connected ? immediateThreat(gameState?.players ?? [], playerId, pendingDirs, gridSize) : null;
   const place = sortedScores.findIndex(([id]) => id === playerId);
-  const rankLabel = place >= 0 ? `第 ${place + 1} / ${sortedScores.length}` : '';
+  const rank = place >= 0 ? place + 1 : null;
+  const leading = isLeading({ rank, fieldSize: sortedScores.length, alive: !isDead && connected });
+  const leadMark = leadingLabel(leading);
+  const rankLabel = place >= 0 ? `第 ${place + 1} / ${sortedScores.length}${leadMark ? ` · ${leadMark}` : ''}` : '';
   const me = gameState?.players.find((player) => player.id === playerId);
   const lengthLabel = me?.alive ? `${me.snake.length} 节` : '';
   const toggleSoundRef = useRef(onToggleSound);
@@ -111,6 +118,24 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
     };
   }, []);
 
+  useEffect(() => {
+    const previous = previousRankRef.current;
+    if (isDead) setLeadNotice(null);
+    if (tookTheLead({ previousRank: previous, nextRank: rank, fieldSize: sortedScores.length, alive: !isDead && connected })) {
+      setLeadNotice(leadCopy());
+      if (leadTimerRef.current !== null) window.clearTimeout(leadTimerRef.current);
+      leadTimerRef.current = window.setTimeout(() => {
+        leadTimerRef.current = null;
+        setLeadNotice(null);
+      }, LEAD_NOTICE_MS);
+    }
+    if (rank !== null) previousRankRef.current = rank;
+  }, [connected, isDead, rank, sortedScores.length]);
+
+  useEffect(() => () => {
+    if (leadTimerRef.current !== null) window.clearTimeout(leadTimerRef.current);
+  }, []);
+
   return (
     <main className="game-layout">
       <header className="game-topbar" data-no-joystick>
@@ -120,6 +145,7 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
         <div className="game-actions"><button className="secondary-button" onClick={onToggleSound} aria-pressed={soundOn} title="音效 (M)">{soundOn ? '音效 开' : '音效 关'}</button><button className="secondary-button" onClick={() => void copyInvite()}>{inviteLabel}</button><button className="secondary-button fullscreen-button" onClick={() => void toggleFullscreen()} title="全屏 (F)">{fullscreen ? '退出全屏' : '全屏 ↗'}</button><button className="secondary-button" onClick={onLeave}>离开</button></div>
       </header>
       {(connectionError || !connected || fullscreenError) && <div className="connection-banner" role="status" data-no-joystick><span>{connectionError || fullscreenError || '正在恢复连接，请稍候…'}</span>{connectionStatus === 'error' && <button className="text-button" onClick={onRetry}>重新连接</button>}</div>}
+      {leadNotice && <div className="lead-banner" role="status">{leadNotice}</div>}
       <div className="game-stage">
         <div className="arena" data-game-surface>
           {children}

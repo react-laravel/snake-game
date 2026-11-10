@@ -133,3 +133,10 @@ Original prompt: 改进代码，提取组件化
 - The join screen now lists who is already in the arena, with score and alive/out status, taken from the existing spectator `gameState`. Overflow past five names is summarized as 「还有 N 人」.
 - Pure helpers live in `client/src/game/lobby.ts` with Node unit tests wired into `pnpm test`. No protocol or scoring changes.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 lead takeover
+
+- Taking first place among at least one other player shows a brief grayscale 「升到第 1 名」 notice. The score badge also marks 「领先」 while you hold first and are still alive.
+- The first snapshot is not treated as a takeover, and a solo lobby does not count as leading.
+- Pure helpers live in `client/src/game/lead.ts` with Node unit tests wired into `pnpm test`. No protocol or scoring changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
