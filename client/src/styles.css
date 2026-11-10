@@ -108,6 +108,7 @@ kbd { font-family: inherit; font-size: 10px; padding: 2px 5px; border: 1px solid
 .death-score span { font-size: 11px; color: #999; }
 .death-best { display: block; margin-top: 4px; color: #b5b5b5; }
 .death-life { color: #c8c8c8; }
+.death-recap { display: block; color: #d4d4d4; font-size: 12px; }
 .death-hotkey { margin: 10px 0 0; font-size: 10px; color: #777; }
 .death-card .primary-button { display: block; width: 100%; }
 .death-card .text-button { margin-top: 8px; }

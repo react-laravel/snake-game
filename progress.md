@@ -120,3 +120,10 @@ Original prompt: 改进代码，提取组件化
 - During that late game, every living snake's name stays visible, not only nearby ones.
 - Pure helpers live in `client/src/game/lateGame.ts` with Node unit tests wired into `pnpm test`. No scoring, collision, or protocol changes.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 life recap
+
+- The death overlay now recaps the life that just ended: survival time, peak length, and scoreboard place, alongside the existing food and kill counts.
+- Peak length is kept even after the server clears the dead body. The recap freezes at death so the timer does not keep running on the overlay.
+- Pure helpers (`nextLifeCounters`, `lifeRecapCopy`, `formatSurvived`, `scoreboardPlace`) live in `client/src/game/lifeStats.ts` with added Node unit tests.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`. No scoring, collision, or protocol changes.
