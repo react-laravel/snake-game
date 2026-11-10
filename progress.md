@@ -154,3 +154,10 @@ Original prompt: 改进代码，提取组件化
 - The spawn direction is kept even if the player turns; a missing snapshot during reconnect does not count as a respawn. The window is independent of the spawn-runway hint.
 - Pure helpers live in `client/src/game/heading.ts` with Node unit tests wired into `pnpm test`. No scoring, collision, or protocol changes.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 reconnect restore
+
+- After a mid-session drop, coming back to `connected` from `reconnecting` or `error` shows a brief grayscale notice: 「连接已恢复，蛇还在场上」 if you are still alive, or 「连接已恢复，积分仍保留」 if you were already out. The first join is not treated as a restore.
+- The notice sits where the disconnect banner was, then clears itself. A new drop hides it immediately.
+- Pure helpers live in `client/src/game/restore.ts` with Node unit tests wired into `pnpm test`. No protocol or scoring/collision changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { deathReason } from '../game/deathCopy';
 import { isLeading, leadCopy, leadingLabel, tookTheLead, LEAD_NOTICE_MS } from '../game/lead';
 import { headingNotice, nextHeadingStart, HEADING_MS, type HeadingStart } from '../game/heading';
+import { connectionRestored, restoreCopy, RESTORE_NOTICE_MS } from '../game/restore';
 import { inviteUrl } from '../game/invite';
 import { immediateThreat } from '../game/lookahead';
 import type { LifeCounters } from '../game/lifeStats';
@@ -53,8 +54,11 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
   const [inviteLabel, setInviteLabel] = useState('邀请');
   const [leadNotice, setLeadNotice] = useState<string | null>(null);
   const [heading, setHeading] = useState<string | null>(null);
+  const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
   const fullscreenTimerRef = useRef<number | null>(null);
   const headingTimerRef = useRef<number | null>(null);
+  const restoreTimerRef = useRef<number | null>(null);
+  const previousStatusRef = useRef<string | null>(null);
   const headingRef = useRef<{ hasSeenSelf: boolean; wasAlive: boolean; start: HeadingStart | null }>({
     hasSeenSelf: false, wasAlive: false, start: null,
   });
@@ -187,6 +191,30 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
     if (headingTimerRef.current !== null) window.clearTimeout(headingTimerRef.current);
   }, []);
 
+  useEffect(() => {
+    const previous = previousStatusRef.current;
+    previousStatusRef.current = connectionStatus;
+    if (connectionStatus !== 'connected') {
+      setRestoreNotice(null);
+      if (restoreTimerRef.current !== null) {
+        window.clearTimeout(restoreTimerRef.current);
+        restoreTimerRef.current = null;
+      }
+      return;
+    }
+    if (!connectionRestored(previous, connectionStatus)) return;
+    setRestoreNotice(restoreCopy(!isDead));
+    if (restoreTimerRef.current !== null) window.clearTimeout(restoreTimerRef.current);
+    restoreTimerRef.current = window.setTimeout(() => {
+      restoreTimerRef.current = null;
+      setRestoreNotice(null);
+    }, RESTORE_NOTICE_MS);
+  }, [connectionStatus, isDead]);
+
+  useEffect(() => () => {
+    if (restoreTimerRef.current !== null) window.clearTimeout(restoreTimerRef.current);
+  }, []);
+
   return (
     <main className="game-layout">
       <header className="game-topbar" data-no-joystick>
@@ -196,6 +224,7 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
         <div className="game-actions"><button className="secondary-button" onClick={onToggleSound} aria-pressed={soundOn} title="音效 (M)">{soundOn ? '音效 开' : '音效 关'}</button><button className="secondary-button" onClick={() => void copyInvite()}>{inviteLabel}</button><button className="secondary-button fullscreen-button" onClick={() => void toggleFullscreen()} title="全屏 (F)">{fullscreen ? '退出全屏' : '全屏 ↗'}</button><button className="secondary-button" onClick={onLeave}>离开</button></div>
       </header>
       {(connectionError || !connected || fullscreenError) && <div className="connection-banner" role="status" data-no-joystick><span>{connectionError || fullscreenError || '正在恢复连接，请稍候…'}</span>{connectionStatus === 'error' && <button className="text-button" onClick={onRetry}>重新连接</button>}</div>}
+      {restoreNotice && <div className="restore-banner" role="status">{restoreNotice}</div>}
       {leadNotice && <div className="lead-banner" role="status">{leadNotice}</div>}
       {heading && <div className="heading-banner" role="status">{heading}</div>}
       <div className="game-stage">
