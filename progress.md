@@ -168,3 +168,10 @@ Original prompt: 改进代码，提取组件化
 - This is a persistent label, not a new toast or banner; the existing late-game banner is unchanged.
 - Pure helpers live in `client/src/game/sole.ts` with Node unit tests wired into `pnpm test`. No protocol or scoring/collision changes.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 camera look-ahead
+
+- On a cropped map, the follow camera looks a short way ahead in the current heading (or the last queued turn) so more of the path is visible, instead of staying centered on the head.
+- The lead is a fraction of the visible span and keeps a trailing margin, so the head never leaves the view. Full-board layouts are unchanged. No new HUD, toast, or scoreboard label.
+- Pure helpers live in `client/src/game/cameraLead.ts` with Node unit tests wired into `pnpm test`. No protocol or scoring/collision changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.

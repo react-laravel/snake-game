@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "test": "node --test src/hooks/connectionUtils.test.mjs src/game/renderGame.test.mjs src/game/personalBest.test.mjs src/game/directionQueue.test.mjs src/game/lifeStats.test.mjs src/game/lookahead.test.mjs src/game/invite.test.mjs src/game/longest.test.mjs src/game/spectator.test.mjs src/game/runway.test.mjs src/game/lateGame.test.mjs src/game/lobby.test.mjs src/game/lead.test.mjs src/game/sessionRecap.test.mjs src/game/heading.test.mjs src/game/restore.test.mjs src/game/sole.test.mjs",
+    "test": "node --test src/hooks/connectionUtils.test.mjs src/game/renderGame.test.mjs src/game/personalBest.test.mjs src/game/directionQueue.test.mjs src/game/lifeStats.test.mjs src/game/lookahead.test.mjs src/game/invite.test.mjs src/game/longest.test.mjs src/game/spectator.test.mjs src/game/runway.test.mjs src/game/lateGame.test.mjs src/game/lobby.test.mjs src/game/lead.test.mjs src/game/sessionRecap.test.mjs src/game/heading.test.mjs src/game/restore.test.mjs src/game/sole.test.mjs src/game/cameraLead.test.mjs",
     "test:browser": "node src/hooks/useGameConnection.browser.test.mjs",
     "preview": "vite preview"
   },

@@ -1,4 +1,5 @@
 import type { Dir, GameState, GridSize, SnakeSegment } from '../types/game';
+import { cameraLeadDir, cameraLeadFocus } from './cameraLead';
 
 interface Viewport { cell: number; x: number; y: number; columns: number; rows: number; offsetX: number; offsetY: number; cropped: boolean; }
 export interface SnakeTrack { previous: SnakeSegment[] | null; current: SnakeSegment[]; }
@@ -247,9 +248,12 @@ export function renderGame({ context, width, height, dpr, cache, gameState, play
   const subject = followPlayer ?? currentPlayer;
   const head = subject ? posed.get(subject.id)?.[0] ?? subject.snake[0] : undefined;
   const targetHead = head ?? cache.head;
-  const cameraHead = panFrom && targetHead && panProgress < 1
-    ? { x: panFrom.x + (targetHead.x - panFrom.x) * panProgress, y: panFrom.y + (targetHead.y - panFrom.y) * panProgress }
-    : targetHead;
+  const visible = getViewport(width, height, gridSize, null);
+  const focusDir = cameraLeadDir(subject?.dir, subject?.id === playerId ? pendingDirs : []);
+  const targetFocus = targetHead ? cameraLeadFocus(targetHead, focusDir, visible) : targetHead;
+  const cameraHead = panFrom && targetFocus && panProgress < 1
+    ? { x: panFrom.x + (targetFocus.x - panFrom.x) * panProgress, y: panFrom.y + (targetFocus.y - panFrom.y) * panProgress }
+    : targetFocus;
   if (cameraHead) cache.head = cameraHead;
   const view = getViewport(width, height, gridSize, cameraHead ?? null);
   const { cell, x, y, columns, rows, offsetX, offsetY } = view;
