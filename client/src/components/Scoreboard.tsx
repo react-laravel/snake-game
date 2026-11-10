@@ -7,6 +7,7 @@ interface ScoreboardProps {
   playerId: string | null;
   frozenPlayerIds: Set<string>;
   lengths: Map<string, number>;
+  soleId?: string | null;
 }
 
 function playerStatus(id: string, entry: ScoreEntry, frozenPlayerIds: Set<string>, length: number) {
@@ -14,7 +15,7 @@ function playerStatus(id: string, entry: ScoreEntry, frozenPlayerIds: Set<string
   return length > 0 ? `${state} · ${length} 节` : state;
 }
 
-export const Scoreboard = memo(function Scoreboard({ sortedScores, playerId, frozenPlayerIds, lengths }: ScoreboardProps) {
+export const Scoreboard = memo(function Scoreboard({ sortedScores, playerId, frozenPlayerIds, lengths, soleId = null }: ScoreboardProps) {
   const [expanded, setExpanded] = useState(false);
   const aliveCount = sortedScores.filter(([, entry]) => entry.alive).length;
   const longestId = longestAliveId(sortedScores.map(([id, entry]) => ({ id, alive: entry.alive, length: lengths.get(id) ?? 0 })));
@@ -29,7 +30,7 @@ export const Scoreboard = memo(function Scoreboard({ sortedScores, playerId, fro
         {sortedScores.map(([id, entry], index) => (
           <div key={id} className={`score-row ${id === playerId ? 'score-row-self' : ''} ${id === longestId ? 'score-row-long' : ''}`}>
             <span className="score-rank">{String(index + 1).padStart(2, '0')}</span>
-            <span className="score-identity"><span className="score-name" title={entry.name}><span className="score-name-text">{entry.name}</span>{id === playerId && <small>你</small>}{id === longestId && <small>最长</small>}</span><span className="score-player-status">{playerStatus(id, entry, frozenPlayerIds, lengths.get(id) ?? 0)}</span></span>
+            <span className="score-identity"><span className="score-name" title={entry.name}><span className="score-name-text">{entry.name}</span>{id === playerId && <small>你</small>}{id === longestId && <small>最长</small>}{id === soleId && <small>独活</small>}</span><span className="score-player-status">{playerStatus(id, entry, frozenPlayerIds, lengths.get(id) ?? 0)}</span></span>
             <span className={`score-points ${!entry.alive ? 'score-faded' : ''}`}>{entry.score}</span>
           </div>
         ))}

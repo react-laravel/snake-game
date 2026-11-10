@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { deathReason } from '../game/deathCopy';
 import { isLeading, leadCopy, leadingLabel, tookTheLead, LEAD_NOTICE_MS } from '../game/lead';
+import { isSoleSurvivor, soleSurvivorId, soleSurvivorLabel } from '../game/sole';
 import { headingNotice, nextHeadingStart, HEADING_MS, type HeadingStart } from '../game/heading';
 import { connectionRestored, restoreCopy, RESTORE_NOTICE_MS } from '../game/restore';
 import { inviteUrl } from '../game/invite';
@@ -46,9 +47,10 @@ interface GameHudProps {
   watchingLabel?: string | null;
   runwayHint?: string | null;
   lateGameCopy?: string | null;
+  peakLiving?: number;
 }
 
-export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound, joystickActive, joystickSize, joystickVisualRef, onJoystickReady, playerId, score, personalBest, pendingDirs, gameState, gridSize, sortedScores, frozenPlayerIds, connectionStatus, connectionError, latencyMs, respawning, onRespawn, onLeave, onRetry, onDirectionChange, watchingLabel = null, runwayHint = null, lateGameCopy = null }: GameHudProps) {
+export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound, joystickActive, joystickSize, joystickVisualRef, onJoystickReady, playerId, score, personalBest, pendingDirs, gameState, gridSize, sortedScores, frozenPlayerIds, connectionStatus, connectionError, latencyMs, respawning, onRespawn, onLeave, onRetry, onDirectionChange, watchingLabel = null, runwayHint = null, lateGameCopy = null, peakLiving = 0 }: GameHudProps) {
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState('');
   const [inviteLabel, setInviteLabel] = useState('邀请');
@@ -76,7 +78,14 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
   const rank = place >= 0 ? place + 1 : null;
   const leading = isLeading({ rank, fieldSize: sortedScores.length, alive: !isDead && connected });
   const leadMark = leadingLabel(leading);
-  const rankLabel = place >= 0 ? `第 ${place + 1} / ${sortedScores.length}${leadMark ? ` · ${leadMark}` : ''}` : '';
+  const livingCount = (gameState?.players ?? []).filter((player) => player.alive).length;
+  const soleId = soleSurvivorId(gameState?.players ?? [], peakLiving);
+  const soleMark = soleSurvivorLabel(isSoleSurvivor({
+    alive: !isDead && Boolean(playerId) && soleId === playerId,
+    livingCount,
+    peakLiving,
+  }));
+  const rankLabel = place >= 0 ? `第 ${place + 1} / ${sortedScores.length}${leadMark ? ` · ${leadMark}` : ''}${soleMark ? ` · ${soleMark}` : ''}` : '';
   const me = gameState?.players.find((player) => player.id === playerId);
   const lengthLabel = me?.alive ? `${me.snake.length} 节` : '';
   const toggleSoundRef = useRef(onToggleSound);
@@ -236,7 +245,7 @@ export function GameHud({ children, deaths, isDead, life, soundOn, onToggleSound
           {lateGameCopy && <p className="late-game-banner" role="status">{lateGameCopy}</p>}
           {isDead && <DeathOverlay score={score} personalBest={personalBest} life={life} reason={reason} respawning={respawning} disabled={!connected} onRespawn={onRespawn} onLeave={onLeave} watchingLabel={watchingLabel} />}
         </div>
-        <Scoreboard sortedScores={sortedScores} playerId={playerId} frozenPlayerIds={frozenPlayerIds} lengths={new Map((gameState?.players ?? []).map((player) => [player.id, player.alive ? player.snake.length : 0]))} />
+        <Scoreboard sortedScores={sortedScores} playerId={playerId} frozenPlayerIds={frozenPlayerIds} lengths={new Map((gameState?.players ?? []).map((player) => [player.id, player.alive ? player.snake.length : 0]))} soleId={soleId} />
       </div>
       <footer className="game-footer">
         <span><kbd>WASD</kbd> / 方向键移动 <span className="desktop-hint">· <kbd>F</kbd> 全屏</span><span className="mobile-hint">· 拖动地图使用摇杆</span>{!isDead && pendingDirs.length > 0 && <span className="turn-queue-hint"> · 待转向 {pendingDirs.map((dir) => DIR_LABEL[dir]).join(' ')}</span>}{threat && <span className="threat-hint" role="status"> · {threat.kind === 'head-on' ? '对面要相撞' : threat.kind === 'snake' ? '下一格有蛇' : threat.distance === 2 ? '两格后是墙' : '下一格是墙'}</span>}{!isDead && runwayHint && <span className="runway-hint" role="status"> · {runwayHint}</span>}</span>

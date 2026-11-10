@@ -161,3 +161,10 @@ Original prompt: 改进代码，提取组件化
 - The notice sits where the disconnect banner was, then clears itself. A new drop hides it immediately.
 - Pure helpers live in `client/src/game/restore.ts` with Node unit tests wired into `pnpm test`. No protocol or scoring/collision changes.
 - Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
+
+## 2026-11-10 sole survivor mark
+
+- After a match that has had at least three living snakes thins to one, the last living player is marked 「独活」 on the score badge and the scoreboard. A one- or two-person lobby is not treated as a victory, and the mark is distinct from score-based 「领先」.
+- This is a persistent label, not a new toast or banner; the existing late-game banner is unchanged.
+- Pure helpers live in `client/src/game/sole.ts` with Node unit tests wired into `pnpm test`. No protocol or scoring/collision changes.
+- Validation: `pnpm test` and `pnpm run build` in `client/`, plus `pnpm test` in `server/`.
